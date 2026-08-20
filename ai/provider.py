@@ -27,13 +27,16 @@ class AIProvider(ABC):
     """
     Common interface for all AI providers.
 
-    Providers must implement analyze().
+    A provider receives both:
+    - structured market context
+    - a prepared textual prompt
     """
 
     @abstractmethod
     def analyze(
         self,
         context: AIAnalysisContext,
+        prompt: str,
     ) -> AIResponse:
         raise NotImplementedError
 
@@ -43,12 +46,13 @@ class NullAIProvider(AIProvider):
     Safe fallback provider.
 
     Used when no external AI service is configured.
-    It does not invent analysis.
+    It never invents an AI analysis.
     """
 
     def analyze(
         self,
         context: AIAnalysisContext,
+        prompt: str,
     ) -> AIResponse:
 
         return AIResponse(
@@ -68,6 +72,7 @@ class NullAIProvider(AIProvider):
             metadata={
                 "symbol": context.symbol,
                 "timeframe": context.timeframe,
+                "prompt_length": len(prompt),
             },
         )
 
@@ -114,8 +119,10 @@ class AIProviderManager:
     def analyze(
         self,
         context: AIAnalysisContext,
+        prompt: str,
     ) -> AIResponse:
 
         return self._provider.analyze(
-            context
+            context,
+            prompt,
         )
