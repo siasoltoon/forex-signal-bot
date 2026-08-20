@@ -75,32 +75,15 @@ class VWAPAnalyzer:
 
         self._validate(dataframe)
 
-        typical_price = (
-            self._typical_price(
-                dataframe
-            )
-        )
-
+        typical_price = self._typical_price(dataframe)
         volume = dataframe["volume"]
 
-        weighted_price = (
-            typical_price * volume
-        )
-
-        cumulative_volume = (
-            volume.cumsum()
-        )
-
-        cumulative_weighted_price = (
-            weighted_price.cumsum()
-        )
+        weighted_price = typical_price * volume
 
         return (
-            cumulative_weighted_price
-            / cumulative_volume.replace(
-                0,
-                np.nan,
-            )
+            weighted_price.cumsum()
+            /
+            volume.cumsum().replace(0, np.nan)
         )
 
     def calculate_rolling_vwap(
@@ -110,36 +93,20 @@ class VWAPAnalyzer:
 
         self._validate(dataframe)
 
-        typical_price = (
-            self._typical_price(
-                dataframe
-            )
-        )
-
+        typical_price = self._typical_price(dataframe)
         volume = dataframe["volume"]
 
-        weighted_price = (
-            typical_price * volume
-        )
-
-        rolling_weighted_price = (
-            weighted_price.rolling(
-                self.rolling_period
-            ).sum()
-        )
-
-        rolling_volume = (
-            volume.rolling(
-                self.rolling_period
-            ).sum()
-        )
+        weighted_price = typical_price * volume
 
         return (
-            rolling_weighted_price
-            / rolling_volume.replace(
-                0,
-                np.nan,
-            )
+            weighted_price
+            .rolling(self.rolling_period)
+            .sum()
+            /
+            volume
+            .rolling(self.rolling_period)
+            .sum()
+            .replace(0, np.nan)
         )
 
     def calculate_deviation(
@@ -149,17 +116,9 @@ class VWAPAnalyzer:
 
         self._validate(dataframe)
 
-        vwap = (
-            self.calculate_session_vwap(
-                dataframe
-            )
-        )
+        vwap = self.calculate_session_vwap(dataframe)
 
-        close = dataframe["close"]
-
-        return (
-            close - vwap
-        )
+        return dataframe["close"] - vwap
 
     def calculate_percentage_deviation(
         self,
@@ -168,20 +127,13 @@ class VWAPAnalyzer:
 
         self._validate(dataframe)
 
-        vwap = (
-            self.calculate_session_vwap(
-                dataframe
-            )
-        )
-
+        vwap = self.calculate_session_vwap(dataframe)
         close = dataframe["close"]
 
         return (
             (close - vwap)
-            / vwap.replace(
-                0,
-                np.nan,
-            )
+            /
+            vwap.replace(0, np.nan)
         ) * 100.0
 
     def detect_position(
@@ -191,12 +143,7 @@ class VWAPAnalyzer:
 
         self._validate(dataframe)
 
-        vwap = (
-            self.calculate_session_vwap(
-                dataframe
-            )
-        )
-
+        vwap = self.calculate_session_vwap(dataframe)
         close = dataframe["close"]
 
         position = pd.Series(
@@ -205,13 +152,8 @@ class VWAPAnalyzer:
             dtype="object",
         )
 
-        position.loc[
-            close > vwap
-        ] = "above_vwap"
-
-        position.loc[
-            close < vwap
-        ] = "below_vwap"
+        position.loc[close > vwap] = "above_vwap"
+        position.loc[close < vwap] = "below_vwap"
 
         return position
 
@@ -222,38 +164,18 @@ class VWAPAnalyzer:
 
         self._validate(dataframe)
 
-        vwap = (
-            self.calculate_session_vwap(
-                dataframe
-            )
-        )
-
+        vwap = self.calculate_session_vwap(dataframe)
         close = dataframe["close"]
 
-        crossings: list[
-            dict[str, Any]
-        ] = []
+        crossings: list[dict[str, Any]] = []
 
-        for i in range(
-            1,
-            len(dataframe),
-        ):
+        for i in range(1, len(dataframe)):
 
-            previous_close = float(
-                close.iloc[i - 1]
-            )
+            previous_close = float(close.iloc[i - 1])
+            current_close = float(close.iloc[i])
 
-            current_close = float(
-                close.iloc[i]
-            )
-
-            previous_vwap = vwap.iloc[
-                i - 1
-            ]
-
-            current_vwap = vwap.iloc[
-                i
-            ]
+            previous_vwap = vwap.iloc[i - 1]
+            current_vwap = vwap.iloc[i]
 
             if (
                 pd.isna(previous_vwap)
@@ -262,12 +184,33 @@ class VWAPAnalyzer:
                 continue
 
             crossed_up = (
-                previous_close
-                <= float(previous_vwap)
-                and current_close
-                > float(current_vwap)
+                previous_close <= float(previous_vwap)
+                and current_close > float(current_vwap)
             )
 
             crossed_down = (
-                previous_close
-                >= float(previous_vwap)
+                previous_close >= float(previous_vwap)
+                and current_close < float(current_vwap)
+            )
+
+            if crossed_up:
+                crossings.append(
+                    {
+                        "index": i,
+                        "type": "crossed_up",
+                        "price": current_close,
+                        "vwap": float(current_vwap),
+                    }
+                )
+
+            elif crossed_down:
+                crossings.append(
+                    {
+                        "index": i,
+                        "type": "crossed_down",
+                        "price": current_close,
+                        "vwap": float(current_vwap),
+                    }
+                )
+
+        return crossings
