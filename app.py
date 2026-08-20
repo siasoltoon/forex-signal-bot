@@ -42,6 +42,11 @@ class Application:
             f"started successfully."
         )
 
+        if self.telegram_bot:
+            print("Telegram bot started.")
+
+            self.telegram_bot.run_polling()
+
     def init_telegram(self) -> None:
         """
         Initialize Telegram bot.
@@ -51,6 +56,11 @@ class Application:
             self.telegram_bot = create_bot()
 
         except ValueError:
+            print(
+                "Telegram bot disabled: "
+                "TELEGRAM_BOT_TOKEN is not set"
+            )
+
             self.telegram_bot = None
 
 
