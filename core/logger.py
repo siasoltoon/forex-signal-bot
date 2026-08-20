@@ -1,4 +1,16 @@
+from __future__ import annotations
+
 import logging
+import os
+from pathlib import Path
+
+
+LOG_DIR = Path("logs")
+
+
+LOG_DIR.mkdir(
+    exist_ok=True
+)
 
 
 def setup_logger() -> logging.Logger:
@@ -6,28 +18,63 @@ def setup_logger() -> logging.Logger:
     Configure application logger.
     """
 
+
     logger = logging.getLogger(
         "forex-signal-bot"
     )
 
+
+    if logger.handlers:
+        return logger
+
+
+    log_level = os.getenv(
+        "LOG_LEVEL",
+        "INFO",
+    ).upper()
+
+
     logger.setLevel(
-        logging.INFO
+        getattr(
+            logging,
+            log_level,
+            logging.INFO,
+        )
     )
 
-    if not logger.handlers:
 
-        handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s | "
+        "%(levelname)s | "
+        "%(name)s | "
+        "%(message)s"
+    )
 
-        formatter = logging.Formatter(
-            "%(asctime)s | %(levelname)s | %(message)s"
-        )
 
-        handler.setFormatter(
-            formatter
-        )
+    console_handler = logging.StreamHandler()
 
-        logger.addHandler(
-            handler
-        )
+    console_handler.setFormatter(
+        formatter
+    )
+
+
+    file_handler = logging.FileHandler(
+        LOG_DIR / "app.log",
+        encoding="utf-8",
+    )
+
+    file_handler.setFormatter(
+        formatter
+    )
+
+
+    logger.addHandler(
+        console_handler
+    )
+
+    logger.addHandler(
+        file_handler
+    )
+
 
     return logger
