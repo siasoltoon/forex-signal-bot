@@ -24,20 +24,28 @@ class ServiceManager:
         ] = service
 
 
-    def start_all(self) -> None:
+    async def start_all(self) -> None:
 
         for service in self.services.values():
 
-            service.start()
+            result = service.start()
+
+            if hasattr(result, "__await__"):
+
+                await result
 
 
-    def stop_all(self) -> None:
+    async def stop_all(self) -> None:
 
         for service in reversed(
             list(self.services.values())
         ):
 
-            service.stop()
+            result = service.stop()
+
+            if hasattr(result, "__await__"):
+
+                await result
 
 
     def health(self) -> dict:
