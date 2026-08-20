@@ -10,15 +10,12 @@ from services.telegram.service import TelegramService
 @dataclass
 class Application:
     """
-    Main application container.
-
-    Responsible for:
-    - Service management
-    - Application lifecycle
-    - System health
+    Main application core.
     """
 
+
     name: str = "forex-signal-bot"
+
 
     services: ServiceManager = field(
         default_factory=ServiceManager
@@ -26,9 +23,6 @@ class Application:
 
 
     def health(self) -> dict:
-        """
-        Return application health.
-        """
 
         return {
             "application": health_check(),
@@ -36,31 +30,25 @@ class Application:
         }
 
 
-    def start(self) -> None:
+    async def start(self) -> None:
         """
-        Start application services.
+        Start application.
         """
 
-        self.services.start_all()
+        await self.services.start_all()
 
         print(
             f"{self.name} started successfully."
         )
 
 
-    def stop(self) -> None:
-        """
-        Stop application services.
-        """
+    async def stop(self) -> None:
 
-        self.services.stop_all()
+        await self.services.stop_all()
 
 
 
 def create_app() -> Application:
-    """
-    Application factory.
-    """
 
     app = Application()
 
