@@ -18,9 +18,9 @@ class AIOrchestrator:
               ↓
         AI Provider
               ↓
-        Response Parser
-
-    This class does not execute trades.
+        AI Response
+              ↓
+        Standardized Result
     """
 
     def __init__(
@@ -52,40 +52,6 @@ class AIOrchestrator:
             else AIResponseParser()
         )
 
-    def analyze(
-        self,
-        context: AIAnalysisContext,
-    ) -> AIResponse:
-
-        # Build the structured prompt.
-        prompt = (
-            self.prompt_builder.build(
-                context
-            )
-        )
-
-        # The current provider interface receives
-        # structured context. The prompt is kept available
-        # for providers that need textual input.
-        response = self.provider.analyze(
-            context
-        )
-
-        # If the provider already returns a normalized
-        # AIResponse, return it directly.
-        if isinstance(
-            response,
-            AIResponse,
-        ):
-            return response
-
-        # Defensive fallback for custom providers.
-        return self.parser.parse(
-            str(response),
-            provider=self.provider.__class__.__name__,
-            model="unknown",
-        )
-
     def build_prompt(
         self,
         context: AIAnalysisContext,
@@ -94,3 +60,31 @@ class AIOrchestrator:
         return self.prompt_builder.build(
             context
         )
+
+    def analyze(
+        self,
+        context: AIAnalysisContext,
+    ) -> AIResponse:
+
+        prompt = self.build_prompt(
+            context
+        )
+
+        response = self.provider.analyze(
+            context,
+            prompt,
+        )
+
+        if not isinstance(
+            response,
+            AIResponse,
+        ):
+            return self.parser.parse(
+                str(response),
+                provider=(
+                    self.provider.__class__.__name__
+                ),
+                model="unknown",
+            )
+
+        return response
