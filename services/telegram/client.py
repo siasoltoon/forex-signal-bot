@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from telegram.ext import Application
 
+from services.telegram.router import register_routes
+
 
 class TelegramClient:
     """
     Telegram bot client wrapper.
     """
+
 
     def __init__(
         self,
@@ -20,10 +23,14 @@ class TelegramClient:
             .build()
         )
 
+        register_routes(
+            self.application
+        )
+
 
     def start(self) -> None:
         """
-        Start telegram client.
+        Initialize telegram client.
         """
 
         print(
