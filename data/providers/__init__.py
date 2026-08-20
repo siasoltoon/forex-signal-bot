@@ -1,7 +1,6 @@
-
-from data.providers.oanda import OandaProvider
-from data.providers.finnhub import FinnhubProvider
-from data.providers.alphavantage import AlphaVantageProvider
+from data.providers.oanda_provider import OandaProvider
+from data.providers.finnhub_provider import FinnhubProvider
+from data.providers.alphavantage_provider import AlphaVantageProvider
 
 
 __all__ = [
