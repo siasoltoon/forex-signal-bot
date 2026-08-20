@@ -54,7 +54,7 @@ class Application:
         self.telegram_bot = None
 
 
-def create_app() -> Application:
+    def create_app() -> Application:
     """
     Application factory.
     """
