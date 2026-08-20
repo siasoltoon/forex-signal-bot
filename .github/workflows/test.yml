@@ -24,6 +24,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Run pytest
+        run: |
+          pip install pytest
+          pytest -q
+
       - name: Import test
         run: |
           python -c "from app import create_app; app = create_app(); print(app.health())"
