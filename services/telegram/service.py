@@ -2,14 +2,19 @@ from __future__ import annotations
 
 from services.base import BaseService
 
+from core.logger import setup_logger
 from services.telegram.client import TelegramClient
 from services.telegram.config import TelegramConfig
+
+
+logger = setup_logger()
 
 
 class TelegramService(BaseService):
     """
     Telegram bot service.
     """
+
 
     name = "telegram"
 
@@ -23,12 +28,12 @@ class TelegramService(BaseService):
 
     async def start(self) -> None:
         """
-        Start Telegram service.
+        Start telegram service.
         """
 
         if not self.config.enabled:
 
-            print(
+            logger.warning(
                 "Telegram disabled: token missing."
             )
 
@@ -43,9 +48,14 @@ class TelegramService(BaseService):
         await self.client.start()
 
 
+        logger.info(
+            "Telegram service started."
+        )
+
+
     async def stop(self) -> None:
         """
-        Stop Telegram service.
+        Stop telegram service.
         """
 
         if self.client:
@@ -53,11 +63,21 @@ class TelegramService(BaseService):
             await self.client.stop()
 
 
+        logger.info(
+            "Telegram service stopped."
+        )
+
+
     def health(self) -> dict[str, str]:
+        """
+        Telegram service health.
+        """
 
         return {
             "service": self.name,
-            "status": "running"
-            if self.client
-            else "disabled",
+            "status": (
+                "running"
+                if self.client
+                else "disabled"
+            ),
         }
