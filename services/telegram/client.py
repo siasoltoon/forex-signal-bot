@@ -28,21 +28,35 @@ class TelegramClient:
         )
 
 
-    def start(self) -> None:
+    async def start(self) -> None:
         """
-        Initialize telegram client.
+        Start telegram bot.
         """
 
+        await self.application.initialize()
+
+        await self.application.start()
+
+        await self.application.updater.start_polling()
+
         print(
-            "Telegram client initialized."
+            "Telegram bot started."
         )
 
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         """
-        Stop telegram client.
+        Stop telegram bot.
         """
 
+        if self.application.updater:
+
+            await self.application.updater.stop()
+
+        await self.application.stop()
+
+        await self.application.shutdown()
+
         print(
-            "Telegram client stopped."
+            "Telegram bot stopped."
         )
