@@ -43,18 +43,18 @@ class Application:
         )
 
     def init_telegram(self) -> None:
-    """
-    Initialize Telegram bot.
-    """
+        """
+        Initialize Telegram bot.
+        """
 
-    try:
-        self.telegram_bot = create_bot()
+        try:
+            self.telegram_bot = create_bot()
 
-    except ValueError:
-        self.telegram_bot = None
+        except ValueError:
+            self.telegram_bot = None
 
 
-    def create_app() -> Application:
+def create_app() -> Application:
     """
     Application factory.
     """
