@@ -1,15 +1,37 @@
 import logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s"
-)
-
-logger = logging.getLogger(__name__)
+from bot.telegram_bot import create_application
+from config.settings import settings
+from utils.logger import setup_logger
 
 
-def main():
-    logger.info("Forex Signal Bot is starting...")
+def main() -> None:
+    """
+    Application entry point.
+    """
+
+    setup_logger(settings.LOG_LEVEL)
+
+    logger = logging.getLogger(__name__)
+
+    logger.info(
+        "Starting Forex Signal Bot..."
+    )
+
+    logger.info(
+        "Environment: %s",
+        settings.ENVIRONMENT,
+    )
+
+    application = create_application()
+
+    logger.info(
+        "Telegram bot is starting..."
+    )
+
+    application.run_polling(
+        drop_pending_updates=True,
+    )
 
 
 if __name__ == "__main__":
