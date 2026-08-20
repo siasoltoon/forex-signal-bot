@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from health import health_check
+from telegram_bot.bot import create_bot
 
 
 @dataclass
@@ -20,6 +21,8 @@ class Application:
 
     name: str = "forex-signal-bot"
 
+    telegram_bot: object | None = None
+
     def health(self) -> dict[str, str]:
         """
         Return application health information.
@@ -30,9 +33,6 @@ class Application:
     def start(self) -> None:
         """
         Start the application.
-
-        External services will be connected here
-        in later stages.
         """
 
         status = self.health()
@@ -42,10 +42,21 @@ class Application:
             f"started successfully."
         )
 
+    def init_telegram(self) -> None:
+        """
+        Initialize Telegram bot.
+        """
+
+        self.telegram_bot = create_bot()
+
 
 def create_app() -> Application:
     """
     Application factory.
     """
 
-    return Application()
+    app = Application()
+
+    app.init_telegram()
+
+    return app
