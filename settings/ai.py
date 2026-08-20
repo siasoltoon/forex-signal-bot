@@ -23,7 +23,7 @@ def get_ai_model() -> str:
 
     return os.getenv(
         "AI_MODEL",
-        "gpt-5.6-mini",
+        "gpt-5.6-luna",
     ).strip()
 
 
