@@ -1,54 +1,29 @@
-import os
+from __future__ import annotations
+
 from dataclasses import dataclass
+
+from config.environment import get_env
 
 
 @dataclass(frozen=True)
 class Settings:
     """
-    Central application configuration.
-
-    All sensitive values are loaded from environment variables.
+    Global application settings.
     """
 
-    BOT_TOKEN: str
+    app_name: str = "forex-signal-bot"
 
-    FINNHUB_API_KEY: str = ""
-    ALPHAVANTAGE_API_KEY: str = ""
-    OANDA_API_KEY: str = ""
-
-    DATABASE_URL: str = ""
-    REDIS_URL: str = ""
-
-    AI_API_KEY: str = ""
-
-    LOG_LEVEL: str = "INFO"
-    ENVIRONMENT: str = "production"
+    telegram_token: str | None = None
 
 
-def load_settings() -> Settings:
-    bot_token = os.getenv("BOT_TOKEN", "").strip()
+    @classmethod
+    def load(cls) -> "Settings":
 
-    if not bot_token:
-        raise RuntimeError(
-            "BOT_TOKEN environment variable is not configured."
+        return cls(
+            telegram_token=get_env(
+                "TELEGRAM_BOT_TOKEN"
+            ),
         )
 
-    return Settings(
-        BOT_TOKEN=bot_token,
-        FINNHUB_API_KEY=os.getenv("FINNHUB_API_KEY", "").strip(),
-        ALPHAVANTAGE_API_KEY=os.getenv(
-            "ALPHAVANTAGE_API_KEY", ""
-        ).strip(),
-        OANDA_API_KEY=os.getenv("OANDA_API_KEY", "").strip(),
-        DATABASE_URL=os.getenv("DATABASE_URL", "").strip(),
-        REDIS_URL=os.getenv("REDIS_URL", "").strip(),
-        AI_API_KEY=os.getenv("AI_API_KEY", "").strip(),
-        LOG_LEVEL=os.getenv("LOG_LEVEL", "INFO").strip(),
-        ENVIRONMENT=os.getenv(
-            "ENVIRONMENT",
-            "production",
-        ).strip(),
-    )
 
-
-settings = load_settings()
+settings = Settings.load()
