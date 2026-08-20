@@ -12,6 +12,7 @@ jobs:
 
     env:
       PYTHONPATH: .
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
 
     steps:
       - name: Checkout repository
