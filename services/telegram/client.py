@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from telegram.ext import Application
 
+from core.logger import setup_logger
 from services.telegram.router import register_routes
+
+
+logger = setup_logger()
 
 
 class TelegramClient:
@@ -30,30 +34,38 @@ class TelegramClient:
 
     async def start(self) -> None:
         """
-        Start polling.
+        Start telegram bot.
         """
 
         await self.application.initialize()
 
         await self.application.start()
 
-        await self.application.updater.start_polling()
+        if self.application.updater:
+
+            await self.application.updater.start_polling()
 
 
-        print(
+        logger.info(
             "Telegram bot is online."
         )
 
 
     async def stop(self) -> None:
+        """
+        Stop telegram bot.
+        """
 
-        await self.application.updater.stop()
+        if self.application.updater:
+
+            await self.application.updater.stop()
+
 
         await self.application.stop()
 
         await self.application.shutdown()
 
 
-        print(
+        logger.info(
             "Telegram bot stopped."
         )
