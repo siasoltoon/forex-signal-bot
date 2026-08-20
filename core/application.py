@@ -2,9 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from core.logger import setup_logger
 from core.service import ServiceManager
+
 from health import health_check
+
 from services.telegram.service import TelegramService
+
+
+logger = setup_logger()
 
 
 @dataclass
@@ -37,23 +43,37 @@ class Application:
 
         await self.services.start_all()
 
-        print(
+
+        logger.info(
             f"{self.name} started successfully."
         )
 
 
     async def stop(self) -> None:
+        """
+        Stop application.
+        """
 
         await self.services.stop_all()
 
 
+        logger.info(
+            f"{self.name} stopped successfully."
+        )
+
+
 
 def create_app() -> Application:
+    """
+    Application factory.
+    """
 
     app = Application()
+
 
     app.services.register(
         TelegramService()
     )
+
 
     return app
