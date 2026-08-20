@@ -2,90 +2,60 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from core.container import ServiceContainer
-from core.logger import setup_logger
+from core.service import ServiceManager
 from health import health_check
 
 
 @dataclass
 class Application:
     """
-    Main application core.
-
-    Responsible for:
-    - Service management
-    - Application lifecycle
-    - System health
-    - Future module integration
+    Main application container.
     """
 
     name: str = "forex-signal-bot"
 
-    container: ServiceContainer = field(
-        default_factory=ServiceContainer
-    )
-
-    logger = field(
-        default=None,
-        init=False
+    services: ServiceManager = field(
+        default_factory=ServiceManager
     )
 
 
-    def initialize(self) -> None:
+    def health(self) -> dict:
         """
-        Initialize application services.
-        """
-
-        self.logger = setup_logger()
-
-        self.logger.info(
-            "Initializing application..."
-        )
-
-        self.container.register(
-            "health",
-            health_check
-        )
-
-
-        self.logger.info(
-            "Application initialized."
-        )
-
-
-    def health(self) -> dict[str, str]:
-        """
-        Return application health status.
+        Return application health.
         """
 
-        health_service = self.container.get(
-            "health"
-        )
-
-        return health_service()
+        return {
+            "application": health_check(),
+            "services": self.services.health(),
+        }
 
 
     def start(self) -> None:
         """
-        Start application.
+        Start application services.
         """
 
-        self.initialize()
+        self.services.start_all()
 
-        status = self.health()
-
-        self.logger.info(
-            f"{status['service']} started successfully."
+        print(
+            f"{self.name} started successfully."
         )
 
 
     def stop(self) -> None:
         """
-        Shutdown application.
+        Stop application services.
         """
 
-        if self.logger:
+        self.services.stop_all()
 
-            self.logger.info(
-                "Application stopped."
-            )
+
+
+def create_app() -> Application:
+    """
+    Application factory.
+    """
+
+    app = Application()
+
+    return app
