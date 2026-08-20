@@ -1,19 +1,21 @@
 from __future__ import annotations
 
-import os
+from config.settings import settings
 
 
 class TelegramConfig:
     """
-    Telegram bot configuration.
+    Telegram configuration.
     """
+
 
     @property
     def token(self) -> str | None:
-        return os.getenv(
-            "TELEGRAM_BOT_TOKEN"
-        )
+        return settings.telegram_token
+
 
     @property
     def enabled(self) -> bool:
-        return bool(self.token)
+        return bool(
+            self.token
+        )
