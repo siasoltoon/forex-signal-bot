@@ -8,7 +8,7 @@ from services.telegram.config import TelegramConfig
 
 class TelegramService(BaseService):
     """
-    Telegram application service.
+    Telegram bot service.
     """
 
     name = "telegram"
@@ -21,7 +21,10 @@ class TelegramService(BaseService):
         self.client: TelegramClient | None = None
 
 
-    def start(self) -> None:
+    async def start(self) -> None:
+        """
+        Start Telegram service.
+        """
 
         if not self.config.enabled:
 
@@ -37,23 +40,24 @@ class TelegramService(BaseService):
         )
 
 
-        print(
-            "Telegram service ready."
-        )
+        await self.client.start()
 
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
+        """
+        Stop Telegram service.
+        """
 
         if self.client:
 
-            print(
-                "Stopping Telegram service."
-            )
+            await self.client.stop()
 
 
     def health(self) -> dict[str, str]:
 
         return {
             "service": self.name,
-            "status": "ready",
+            "status": "running"
+            if self.client
+            else "disabled",
         }
