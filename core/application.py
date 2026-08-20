@@ -4,12 +4,18 @@ from dataclasses import dataclass, field
 
 from core.service import ServiceManager
 from health import health_check
+from services.telegram.service import TelegramService
 
 
 @dataclass
 class Application:
     """
     Main application container.
+
+    Responsible for:
+    - Service management
+    - Application lifecycle
+    - System health
     """
 
     name: str = "forex-signal-bot"
@@ -57,5 +63,9 @@ def create_app() -> Application:
     """
 
     app = Application()
+
+    app.services.register(
+        TelegramService()
+    )
 
     return app
