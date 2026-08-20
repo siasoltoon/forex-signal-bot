@@ -1,3 +1,4 @@
+from __future__ import annotations
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -5,8 +6,15 @@ from telegram.ext import ContextTypes
 
 async def start_handler(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """
+    Handle /start command.
+    """
+
+    if update.message is None:
+        return
+
     await update.message.reply_text(
         "🤖 سلام!\n\n"
         "به ربات تحلیل هوشمند فارکس خوش آمدید.\n"
