@@ -7,7 +7,7 @@ from services.telegram.router import register_routes
 
 class TelegramClient:
     """
-    Telegram bot client wrapper.
+    Telegram bot client.
     """
 
 
@@ -30,7 +30,7 @@ class TelegramClient:
 
     async def start(self) -> None:
         """
-        Start telegram bot.
+        Start polling.
         """
 
         await self.application.initialize()
@@ -39,23 +39,20 @@ class TelegramClient:
 
         await self.application.updater.start_polling()
 
+
         print(
-            "Telegram bot started."
+            "Telegram bot is online."
         )
 
 
     async def stop(self) -> None:
-        """
-        Stop telegram bot.
-        """
 
-        if self.application.updater:
-
-            await self.application.updater.stop()
+        await self.application.updater.stop()
 
         await self.application.stop()
 
         await self.application.shutdown()
+
 
         print(
             "Telegram bot stopped."
