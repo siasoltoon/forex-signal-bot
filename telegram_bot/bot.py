@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import os
 
-from telegram.ext import (
-    Application,
-)
+from telegram.ext import Application
+
+from handlers.register import register_handlers
 
 
 def get_bot_token() -> str:
@@ -23,15 +23,19 @@ def get_bot_token() -> str:
 
 def create_telegram_application() -> Application:
     """
-    Create the Telegram application.
-
-    The bot token is read from an environment variable.
+    Create and configure the Telegram application.
     """
 
     token = get_bot_token()
 
-    return (
+    application = (
         Application.builder()
         .token(token)
         .build()
     )
+
+    register_handlers(
+        application
+    )
+
+    return application
