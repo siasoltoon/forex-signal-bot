@@ -2,6 +2,13 @@ from __future__ import annotations
 
 from services.base import BaseService
 
+from core.errors import handle_exception
+from core.logger import setup_logger
+
+
+logger = setup_logger()
+
+
 
 class ServiceManager:
     """
@@ -16,7 +23,7 @@ class ServiceManager:
 
     def register(
         self,
-        service: BaseService
+        service: BaseService,
     ) -> None:
 
         self.services[
@@ -28,29 +35,84 @@ class ServiceManager:
 
         for service in self.services.values():
 
-            result = service.start()
+            try:
 
-            if hasattr(result, "__await__"):
+                result = service.start()
 
-                await result
+                if hasattr(
+                    result,
+                    "__await__"
+                ):
+
+                    await result
+
+
+                logger.info(
+                    "%s service started.",
+                    service.name,
+                )
+
+
+            except Exception as error:
+
+                handle_exception(
+                    error
+                )
 
 
     async def stop_all(self) -> None:
 
         for service in reversed(
-            list(self.services.values())
+            list(
+                self.services.values()
+            )
         ):
 
-            result = service.stop()
+            try:
 
-            if hasattr(result, "__await__"):
+                result = service.stop()
 
-                await result
+                if hasattr(
+                    result,
+                    "__await__"
+                ):
+
+                    await result
+
+
+                logger.info(
+                    "%s service stopped.",
+                    service.name,
+                )
+
+
+            except Exception as error:
+
+                handle_exception(
+                    error
+                )
 
 
     def health(self) -> dict:
 
-        return {
-            name: service.health()
-            for name, service in self.services.items()
-        }
+        result = {}
+
+        for name, service in self.services.items():
+
+            try:
+
+                result[name] = service.health()
+
+
+            except Exception as error:
+
+                handle_exception(
+                    error
+                )
+
+                result[name] = {
+                    "status": "error"
+                }
+
+
+        return result
