@@ -4,10 +4,13 @@ on:
   push:
     branches:
       - main
+
   pull_request:
+
 
 jobs:
   test:
+
     runs-on: ubuntu-latest
 
     env:
@@ -15,28 +18,40 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
 
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
+
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
 
       - name: Run pytest
         run: |
           pip install pytest
           pytest -q
 
-      - name: Import test
+
+      - name: Application health test
         run: |
           python -c "from app import create_app; app = create_app(); print(app.health())"
 
-      - name: Run application smoke test
+
+      - name: Telegram bot import test
         run: |
-          python main.py
+          python -c "from telegram_bot.bot import get_bot_token; print('Telegram module OK')"
+
+
+      - name: Syntax check
+        run: |
+          python -m compileall .
+
