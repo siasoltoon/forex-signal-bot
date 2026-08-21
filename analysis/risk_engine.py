@@ -36,15 +36,17 @@ class RiskResult:
 
 class RiskEngine:
     """
-    Calculates trade management levels.
+    Advanced trade risk management engine.
 
-    Provides:
+    Features:
 
-    - Entry
-    - Stop Loss
-    - Take Profit
-    - Risk Reward
-    - Risk Level
+    - Entry calculation
+    - ATR based Stop Loss
+    - ATR based Take Profit
+    - Risk Reward calculation
+    - Dynamic risk level
+    - Confidence aware risk
+    - Score aware risk
     """
 
 
@@ -52,6 +54,7 @@ class RiskEngine:
     def __init__(
         self,
         risk_reward_target: float = 2.0,
+        atr_multiplier: float = 1.5,
     ) -> None:
 
 
@@ -60,15 +63,123 @@ class RiskEngine:
         )
 
 
+        self.atr_multiplier = (
+            atr_multiplier
+        )
+
+
 
     # ==================================================
-    # Calculate BUY Setup
+    # Risk Level
+    # ==================================================
+
+    @staticmethod
+    def _calculate_risk_level(
+        confidence: float,
+        score: float,
+    ) -> str:
+        """
+        Determines risk level from
+        confidence and decision score.
+        """
+
+
+        if (
+
+            confidence >= 0.80
+
+            and
+
+            abs(score) >= 60
+
+        ):
+
+            return "LOW"
+
+
+
+        elif (
+
+            confidence >= 0.50
+
+        ):
+
+            return "MEDIUM"
+
+
+
+        else:
+
+            return "HIGH"
+
+
+
+
+    # ==================================================
+    # Risk Distance
+    # ==================================================
+
+    def _calculate_risk_distance(
+        self,
+        price: float,
+        atr: float | None = None,
+        risk_distance: float | None = None,
+    ) -> float:
+        """
+        Calculates stop distance.
+
+        Priority:
+
+        1. Manual risk distance
+        2. ATR based distance
+        3. Percentage fallback
+        """
+
+
+
+        if risk_distance is not None:
+
+            return abs(
+                risk_distance
+            )
+
+
+
+        if atr is not None and atr > 0:
+
+            return (
+
+                atr
+
+                *
+
+                self.atr_multiplier
+
+            )
+
+
+
+        return (
+
+            price
+
+            *
+
+            0.01
+
+        )
+
+
+
+    # ==================================================
+    # BUY Setup
     # ==================================================
 
     def _buy_setup(
         self,
         price: float,
         risk_distance: float,
+        risk_level: str,
     ) -> RiskResult:
 
 
@@ -128,27 +239,28 @@ class RiskEngine:
             risk_reward=self.risk_reward_target,
 
 
-            risk_level="MEDIUM",
+            risk_level=risk_level,
 
 
             reason=(
 
-                "Bullish setup risk calculated"
+                "Bullish setup risk calculated using ATR and confidence"
 
             ),
 
         )
 
 
-
+    
     # ==================================================
-    # Calculate SELL Setup
+    # SELL Setup
     # ==================================================
 
     def _sell_setup(
         self,
         price: float,
         risk_distance: float,
+        risk_level: str,
     ) -> RiskResult:
 
 
@@ -208,12 +320,12 @@ class RiskEngine:
             risk_reward=self.risk_reward_target,
 
 
-            risk_level="MEDIUM",
+            risk_level=risk_level,
 
 
             reason=(
 
-                "Bearish setup risk calculated"
+                "Bearish setup risk calculated using ATR and confidence"
 
             ),
 
@@ -229,28 +341,72 @@ class RiskEngine:
         self,
         signal: str,
         current_price: float,
+        atr: float | None = None,
+        confidence: float = 0.0,
+        score: float = 0.0,
         risk_distance: float | None = None,
     ) -> RiskResult:
-        
+        """
+        Main risk calculation.
 
-        if risk_distance is None:
+        Parameters:
 
-            # Default fallback
-            # Later replaced by ATR
+        signal:
+            BUY / SELL / NONE
 
-            risk_distance = (
+        current_price:
+            Current market price
 
-                current_price
+        atr:
+            Average True Range value
 
-                *
+        confidence:
+            Analysis confidence
 
-                0.01
+        score:
+            Decision score
+
+        risk_distance:
+            Manual override
+        """
+
+
+
+        distance = (
+
+            self._calculate_risk_distance(
+
+                price=current_price,
+
+                atr=atr,
+
+                risk_distance=risk_distance,
 
             )
 
+        )
 
 
-        signal = signal.upper()
+
+        signal = (
+
+            signal.upper()
+
+        )
+
+
+
+        risk_level = (
+
+            self._calculate_risk_level(
+
+                confidence,
+
+                score,
+
+            )
+
+        )
 
 
 
@@ -259,9 +415,11 @@ class RiskEngine:
 
             return self._buy_setup(
 
-                current_price,
+                price=current_price,
 
-                risk_distance
+                risk_distance=distance,
+
+                risk_level=risk_level,
 
             )
 
@@ -272,9 +430,11 @@ class RiskEngine:
 
             return self._sell_setup(
 
-                current_price,
+                price=current_price,
 
-                risk_distance
+                risk_distance=distance,
+
+                risk_level=risk_level,
 
             )
 
@@ -297,7 +457,7 @@ class RiskEngine:
 
                 reason=(
 
-                    "No trade setup"
+                    "No trade setup available"
 
                 ),
 
