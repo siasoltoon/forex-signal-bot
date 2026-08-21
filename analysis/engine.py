@@ -25,6 +25,9 @@ class AnalysisResult:
 
     indicators: dict[str, object]
 
+    supply_demand: dict[str, object] | None = None
+
+
 
 class AnalysisEngine:
     """
@@ -34,6 +37,7 @@ class AnalysisEngine:
     - Execute indicators.
     - Detect market trend.
     - Detect momentum state.
+    - Prepare supply/demand integration point.
     - Return normalized analysis result.
     """
 
@@ -65,6 +69,7 @@ class AnalysisEngine:
                 closes,
                 period=20,
             ),
+
             "ema": ema(
                 closes,
                 period=20,
@@ -112,12 +117,17 @@ class AnalysisEngine:
 
         return AnalysisResult(
             trend=trend,
+
             momentum=momentum_state,
+
             indicators={
                 **moving_average,
                 **momentum,
             },
+
+            supply_demand=None,
         )
+
 
 
     @staticmethod
