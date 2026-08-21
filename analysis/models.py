@@ -1,47 +1,91 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 
 @dataclass(
     frozen=True
 )
-class AnalysisScore:
+class AnalysisCandle:
     """
-    Standard analysis scoring result.
-
-    score:
-        Range: -100 to +100
-
-    direction:
-        BUY / SELL / NEUTRAL
-
-    confidence:
-        Range: 0.0 to 1.0
+    Standard OHLCV candle model
+    used by analysis engines.
     """
 
-    score: float
+    timestamp: datetime
 
-    direction: str
+    open: float
 
-    confidence: float
+    high: float
+
+    low: float
+
+    close: float
+
+    volume: float = 0.0
 
 
-@dataclass(
-    frozen=True
-)
-class SignalComponent:
-    """
-    Single analysis component contribution.
+    def __post_init__(self) -> None:
+        """
+        Validate candle values.
+        """
 
-    Example:
-    RSI contribution
-    MACD contribution
-    Trend contribution
-    """
+        if self.high < self.low:
+            raise ValueError(
+                "high cannot be lower than low."
+            )
 
-    name: str
+        if self.open <= 0:
+            raise ValueError(
+                "open price must be positive."
+            )
 
-    score: float
+        if self.high <= 0:
+            raise ValueError(
+                "high price must be positive."
+            )
 
-    reason: str
+        if self.low <= 0:
+            raise ValueError(
+                "low price must be positive."
+            )
+
+        if self.close <= 0:
+            raise ValueError(
+                "close price must be positive."
+            )
+
+        if self.volume < 0:
+            raise ValueError(
+                "volume cannot be negative."
+            )
+
+
+    @property
+    def body_size(self) -> float:
+        """
+        Candle body size.
+        """
+
+        return abs(
+            self.close - self.open
+        )
+
+
+    @property
+    def is_bullish(self) -> bool:
+        """
+        Bullish candle check.
+        """
+
+        return self.close > self.open
+
+
+    @property
+    def is_bearish(self) -> bool:
+        """
+        Bearish candle check.
+        """
+
+        return self.close < self.open
