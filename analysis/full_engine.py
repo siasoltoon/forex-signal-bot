@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 from analysis.report import AnalysisReport
+
 from analysis.market_structure import (
     MarketStructureDetector,
 )
+
 from analysis.scoring import (
     AnalysisScorer,
+)
+
+from analysis.models import (
+    AnalysisResult,
 )
 
 
@@ -42,19 +48,17 @@ class FullAnalysisEngine:
         )
 
 
-        score_input = type(
-            "AnalysisInput",
-            (),
-            {
-                "trend": structure.trend,
-                "momentum": "neutral",
-            },
-        )()
+        analysis_result = AnalysisResult(
+            trend=structure.trend,
+            momentum="neutral",
+            indicators={},
+            supply_demand=None,
+        )
 
 
         score = (
             self.scorer.score(
-                score_input
+                analysis_result
             )
         )
 
