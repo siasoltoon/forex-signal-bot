@@ -14,12 +14,17 @@ class AnalysisScorer:
     Advanced multi-factor scoring engine.
 
     Factors:
+
     - Trend
     - Market Structure
     - Momentum
     - Volatility
     - Supply/Demand
     - Price Action
+    - Candlestick
+    - Elliott Wave
+    - Harmonic Pattern
+    - Wyckoff
     """
 
 
@@ -31,6 +36,7 @@ class AnalysisScorer:
 
 
         components: list[SignalComponent] = []
+
 
 
         components.append(
@@ -61,6 +67,7 @@ class AnalysisScorer:
         )
 
 
+
         if getattr(
             analysis_result,
             "supply_demand",
@@ -74,6 +81,7 @@ class AnalysisScorer:
             )
 
 
+
         components.append(
             self._score_price_action(
                 analysis_result
@@ -81,10 +89,44 @@ class AnalysisScorer:
         )
 
 
+
+        components.append(
+            self._score_candlestick(
+                analysis_result
+            )
+        )
+
+
+
+        components.append(
+            self._score_elliott(
+                analysis_result
+            )
+        )
+
+
+
+        components.append(
+            self._score_harmonic(
+                analysis_result
+            )
+        )
+
+
+
+        components.append(
+            self._score_wyckoff(
+                analysis_result
+            )
+        )
+
+
+
         total_score = sum(
             component.score
             for component in components
         )
+
 
 
         total_score = max(
@@ -96,7 +138,9 @@ class AnalysisScorer:
         )
 
 
+
         return AnalysisScore(
+
             score=float(total_score),
 
             direction=self._direction(
@@ -110,6 +154,28 @@ class AnalysisScorer:
             ),
 
             components=components,
+
+        )
+
+
+
+    # =========================
+    # Generic Score Helper
+    # =========================
+
+
+    @staticmethod
+    def _custom_score(
+        value: float,
+        name: str,
+        reason: str,
+    ) -> SignalComponent:
+
+
+        return SignalComponent(
+            name=name,
+            score=value,
+            reason=reason,
         )
 
 
@@ -125,19 +191,19 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
-        trend_score = getattr(
+        score = getattr(
             result,
             "trend_score",
             0.0,
         )
 
 
-        if trend_score != 0:
+        if score != 0:
 
             return SignalComponent(
                 name="trend",
-                score=trend_score,
-                reason="Trend score from analysis engine.",
+                score=score,
+                reason="Trend engine score.",
             )
 
 
@@ -168,7 +234,7 @@ class AnalysisScorer:
 
 
     # =========================
-    # Market Structure
+    # Structure
     # =========================
 
 
@@ -178,35 +244,14 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
-        structure_score = getattr(
-            result,
-            "structure_score",
-            0.0,
-        )
-
-
-        if structure_score > 0:
-
-            return SignalComponent(
-                name="structure",
-                score=structure_score,
-                reason="Bullish market structure.",
-            )
-
-
-        if structure_score < 0:
-
-            return SignalComponent(
-                name="structure",
-                score=structure_score,
-                reason="Bearish market structure.",
-            )
-
-
         return SignalComponent(
             name="structure",
-            score=0,
-            reason="No structure signal.",
+            score=getattr(
+                result,
+                "structure_score",
+                0.0,
+            ),
+            reason="Market structure score.",
         )
 
 
@@ -222,44 +267,14 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
-        momentum_score = getattr(
-            result,
-            "momentum_score",
-            0.0,
-        )
-
-
-        if momentum_score != 0:
-
-            return SignalComponent(
-                name="momentum",
-                score=momentum_score,
-                reason="Momentum engine score.",
-            )
-
-
-        if result.momentum == "oversold":
-
-            return SignalComponent(
-                name="momentum",
-                score=20,
-                reason="Market is oversold.",
-            )
-
-
-        if result.momentum == "overbought":
-
-            return SignalComponent(
-                name="momentum",
-                score=-20,
-                reason="Market is overbought.",
-            )
-
-
         return SignalComponent(
             name="momentum",
-            score=0,
-            reason="Neutral momentum.",
+            score=getattr(
+                result,
+                "momentum_score",
+                0.0,
+            ),
+            reason="Momentum engine score.",
         )
 
 
@@ -275,26 +290,14 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
-        volatility_score = getattr(
-            result,
-            "volatility_score",
-            0.0,
-        )
-
-
-        if volatility_score != 0:
-
-            return SignalComponent(
-                name="volatility",
-                score=volatility_score,
-                reason="Volatility analysis score.",
-            )
-
-
         return SignalComponent(
             name="volatility",
-            score=0,
-            reason="No volatility signal.",
+            score=getattr(
+                result,
+                "volatility_score",
+                0.0,
+            ),
+            reason="Volatility engine score.",
         )
 
 
@@ -319,7 +322,7 @@ class AnalysisScorer:
             )
 
 
-        if result.supply_demand == "supply":
+        if result.supply_demand == "Supply":
 
             return SignalComponent(
                 name="supply_demand",
@@ -331,7 +334,7 @@ class AnalysisScorer:
         return SignalComponent(
             name="supply_demand",
             score=0,
-            reason="No supply/demand signal.",
+            reason="Neutral supply demand.",
         )
 
 
@@ -347,26 +350,106 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
-        price_action_score = getattr(
-            result,
-            "price_action_score",
-            0.0,
+        return SignalComponent(
+            name="price_action",
+            score=getattr(
+                result,
+                "price_action_score",
+                0.0,
+            ),
+            reason="Price action score.",
         )
 
 
-        if price_action_score != 0:
 
-            return SignalComponent(
-                name="price_action",
-                score=price_action_score,
-                reason="Price action score.",
-            )
+    # =========================
+    # Candlestick
+    # =========================
+
+
+    @staticmethod
+    def _score_candlestick(
+        result: AnalysisResult,
+    ) -> SignalComponent:
 
 
         return SignalComponent(
-            name="price_action",
-            score=0,
-            reason="No price action signal.",
+            name="candlestick",
+            score=getattr(
+                result,
+                "candlestick_score",
+                0.0,
+            ),
+            reason="Candlestick pattern score.",
+        )
+
+
+
+    # =========================
+    # Elliott
+    # =========================
+
+
+    @staticmethod
+    def _score_elliott(
+        result: AnalysisResult,
+    ) -> SignalComponent:
+
+
+        return SignalComponent(
+            name="elliott",
+            score=getattr(
+                result,
+                "elliott_score",
+                0.0,
+            ),
+            reason="Elliott wave score.",
+        )
+
+
+
+    # =========================
+    # Harmonic
+    # =========================
+
+
+    @staticmethod
+    def _score_harmonic(
+        result: AnalysisResult,
+    ) -> SignalComponent:
+
+
+        return SignalComponent(
+            name="harmonic",
+            score=getattr(
+                result,
+                "harmonic_score",
+                0.0,
+            ),
+            reason="Harmonic pattern score.",
+        )
+
+
+
+    # =========================
+    # Wyckoff Future
+    # =========================
+
+
+    @staticmethod
+    def _score_wyckoff(
+        result: AnalysisResult,
+    ) -> SignalComponent:
+
+
+        return SignalComponent(
+            name="wyckoff",
+            score=getattr(
+                result,
+                "wyckoff_score",
+                0.0,
+            ),
+            reason="Wyckoff analysis score.",
         )
 
 
@@ -383,11 +466,15 @@ class AnalysisScorer:
 
 
         if score > 0:
+
             return "BUY"
 
 
+
         if score < 0:
+
             return "SELL"
+
 
 
         return "NEUTRAL"
