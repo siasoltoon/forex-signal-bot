@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from analysis.report import AnalysisReport
 
-
 from analysis.candle import Candle
 
 
@@ -62,6 +61,11 @@ from analysis.brooks_engine import (
 )
 
 
+from analysis.wyckoff_engine import (
+    WyckoffEngine,
+)
+
+
 
 class FullAnalysisEngine:
     """
@@ -78,6 +82,7 @@ class FullAnalysisEngine:
     - Elliott Wave
     - Harmonic Patterns
     - Al Brooks Price Action
+    - Wyckoff
     - Scoring
     """
 
@@ -131,6 +136,11 @@ class FullAnalysisEngine:
         )
 
 
+        self.wyckoff_engine = (
+            WyckoffEngine()
+        )
+
+
         self.scorer = AnalysisScorer()
 
 
@@ -140,10 +150,6 @@ class FullAnalysisEngine:
         candles: list[Candle] | list[float],
     ) -> AnalysisReport:
 
-
-        # =========================
-        # Normalize Input
-        # =========================
 
         if not candles:
 
@@ -205,10 +211,6 @@ class FullAnalysisEngine:
 
 
 
-        # =========================
-        # Market Structure
-        # =========================
-
         structure = (
             self.structure_detector.analyze(
                 closes
@@ -216,10 +218,6 @@ class FullAnalysisEngine:
         )
 
 
-
-        # =========================
-        # Indicators
-        # =========================
 
         indicator_snapshot = (
             self.indicator_engine.calculate(
@@ -229,10 +227,6 @@ class FullAnalysisEngine:
 
 
 
-        # =========================
-        # Momentum
-        # =========================
-
         momentum_result = (
             self.momentum_engine.analyze(
                 indicator_snapshot.values
@@ -240,10 +234,6 @@ class FullAnalysisEngine:
         )
 
 
-
-        # =========================
-        # Price Action
-        # =========================
 
         price_action_result = (
             self.price_action_engine.analyze(
@@ -253,10 +243,6 @@ class FullAnalysisEngine:
 
 
 
-        # =========================
-        # Supply Demand
-        # =========================
-
         supply_demand_result = (
             self.supply_demand_engine.analyze(
                 closes
@@ -264,10 +250,6 @@ class FullAnalysisEngine:
         )
 
 
-
-        # =========================
-        # Candlestick
-        # =========================
 
         candlestick_result = (
             self.candlestick_engine.analyze(
@@ -277,10 +259,6 @@ class FullAnalysisEngine:
 
 
 
-        # =========================
-        # Elliott Wave
-        # =========================
-
         elliott_result = (
             self.elliott_engine.analyze(
                 closes
@@ -288,10 +266,6 @@ class FullAnalysisEngine:
         )
 
 
-
-        # =========================
-        # Harmonic Patterns
-        # =========================
 
         harmonic_result = (
             self.harmonic_engine.analyze(
@@ -301,10 +275,6 @@ class FullAnalysisEngine:
 
 
 
-        # =========================
-        # Brooks Price Action
-        # =========================
-
         brooks_result = (
             self.brooks_engine.analyze(
                 closes
@@ -313,9 +283,13 @@ class FullAnalysisEngine:
 
 
 
-        # =========================
-        # Build Analysis Result
-        # =========================
+        wyckoff_result = (
+            self.wyckoff_engine.analyze(
+                closes
+            )
+        )
+
+
 
         analysis_result = AnalysisResult(
 
@@ -341,6 +315,7 @@ class FullAnalysisEngine:
             trend_score=0.0,
 
 
+
             momentum_score=(
                 momentum_result.score
             ),
@@ -364,41 +339,37 @@ class FullAnalysisEngine:
 
 
             price_action_score=(
-
                 price_action_result.score
-
             ),
 
 
 
             candlestick_score=(
-
                 candlestick_result.score
-
             ),
 
 
 
             elliott_score=(
-
                 elliott_result.score
-
             ),
 
 
 
             harmonic_score=(
-
                 harmonic_result.score
-
             ),
 
 
 
             brooks_score=(
-
                 brooks_result.score
+            ),
 
+
+
+            wyckoff_score=(
+                wyckoff_result.score
             ),
 
 
@@ -425,6 +396,8 @@ class FullAnalysisEngine:
 
                     brooks_result.reason,
 
+                    wyckoff_result.reason,
+
                 ]
 
             ),
@@ -432,10 +405,6 @@ class FullAnalysisEngine:
         )
 
 
-
-        # =========================
-        # Final Score
-        # =========================
 
         score = (
             self.scorer.score(
