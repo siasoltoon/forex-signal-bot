@@ -13,14 +13,28 @@ class AnalysisReport:
     Final user-facing analysis report.
 
     Contains:
+
+    Core:
     - Trend
-    - Market structure
+    - Market Structure
     - Score
     - Signal
     - Confidence
+
+    Smart Money:
+    - SMC Bias
+    - Order Block
+    - Liquidity
+    - Fair Value Gap
+
+    Confidence Layer:
+    - Agreement
+    - Votes
+    - Warnings
+
+    Explanation:
     - Reasons
     - Indicators
-    - Smart Money Concepts data
     """
 
 
@@ -28,6 +42,7 @@ class AnalysisReport:
     # =========================
     # Core Result
     # =========================
+
 
     trend: str
 
@@ -46,8 +61,29 @@ class AnalysisReport:
 
 
     # =========================
+    # Confidence Layer
+    # =========================
+
+
+    agreement: float = 0.0
+
+
+    bullish_votes: int = 0
+
+
+    bearish_votes: int = 0
+
+
+    warnings: list[str] = field(
+        default_factory=list
+    )
+
+
+
+    # =========================
     # Smart Money Concepts
     # =========================
+
 
     smc_bias: str = "neutral"
 
@@ -67,10 +103,11 @@ class AnalysisReport:
     premium_discount: str = "unknown"
 
 
-
+    
     # =========================
     # Explanation Layer
     # =========================
+
 
     reasons: list[str] = field(
         default_factory=list
@@ -81,6 +118,7 @@ class AnalysisReport:
     # =========================
     # Indicators Snapshot
     # =========================
+
 
     indicators: dict[str, Any] = field(
         default_factory=dict
