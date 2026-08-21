@@ -42,6 +42,7 @@ class FullAnalysisEngine:
     """
 
 
+
     def __init__(self) -> None:
 
         self.structure_detector = (
@@ -106,46 +107,25 @@ class FullAnalysisEngine:
 
 
         # =========================
-        # Build Analysis Result
+        # Analysis Result
         # =========================
 
         analysis_result = AnalysisResult(
 
             trend=structure.trend,
 
-
             momentum=momentum_result.state,
-
 
             indicators=indicator_snapshot.values,
 
-
             supply_demand=None,
 
-
-            # Advanced scoring data
-
-            momentum_score=(
-                momentum_result.score
-            ),
-
-
-            structure_score=(
-                20
-                if structure.bos
-                else 0
-            ),
-
-
-            reasons=(
-                momentum_result.reasons
-            ),
         )
 
 
 
         # =========================
-        # Final Score
+        # Score
         # =========================
 
         score = (
@@ -164,29 +144,20 @@ class FullAnalysisEngine:
 
 
 
+        # =========================
+        # Final Report
+        # =========================
+
         return AnalysisReport(
 
             trend=structure.trend,
 
-
             structure=structure_name,
-
 
             score=score.score,
 
-
             signal=score.direction,
-
 
             confidence=score.confidence,
 
-
-            reasons=(
-                analysis_result.reasons
-            ),
-
-
-            indicators=(
-                indicator_snapshot.values
-            ),
         )
