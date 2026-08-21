@@ -42,6 +42,11 @@ from analysis.supply_demand_engine import (
 )
 
 
+from analysis.candlestick_engine import (
+    CandlestickEngine,
+)
+
+
 
 class FullAnalysisEngine:
     """
@@ -56,6 +61,7 @@ class FullAnalysisEngine:
     - Momentum
     - Price Action
     - Supply / Demand
+    - Candlestick Patterns
     - Scoring
     """
 
@@ -86,6 +92,11 @@ class FullAnalysisEngine:
 
         self.supply_demand_engine = (
             SupplyDemandEngine()
+        )
+
+
+        self.candlestick_engine = (
+            CandlestickEngine()
         )
 
 
@@ -215,6 +226,18 @@ class FullAnalysisEngine:
 
 
         # =========================
+        # Candlestick
+        # =========================
+
+        candlestick_result = (
+            self.candlestick_engine.analyze(
+                candle_data
+            )
+        )
+
+
+
+        # =========================
         # Build Analysis Result
         # =========================
 
@@ -271,6 +294,14 @@ class FullAnalysisEngine:
 
 
 
+            candlestick_score=(
+
+                candlestick_result.score
+
+            ),
+
+
+
             reasons=(
 
                 momentum_result.reasons
@@ -282,7 +313,10 @@ class FullAnalysisEngine:
                 +
 
                 [
-                    supply_demand_result.reason
+                    supply_demand_result.reason,
+
+                    candlestick_result.reason,
+
                 ]
 
             ),
