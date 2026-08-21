@@ -30,12 +30,13 @@ class AnalysisEngine:
     """
     Technical analysis engine.
 
-    Responsible for:
-    - Running indicators.
-    - Detecting trend.
-    - Detecting momentum.
-    - Producing normalized analysis result.
+    Responsibilities:
+    - Execute indicators.
+    - Detect market trend.
+    - Detect momentum state.
+    - Return normalized analysis result.
     """
+
 
     def analyze(
         self,
@@ -58,6 +59,7 @@ class AnalysisEngine:
                 "closes cannot be empty."
             )
 
+
         moving_average = {
             "sma": sma(
                 closes,
@@ -69,27 +71,44 @@ class AnalysisEngine:
             ),
         }
 
+
         momentum = {
             "rsi": rsi(
                 closes,
                 period=14,
             ),
-            "macd": macd(
-                closes,
+
+            "macd": (
+                macd(
+                    closes,
+                )
+                if len(closes) >= 35
+                else {
+                    "macd": [],
+                    "signal": [],
+                }
             ),
-            "stochastic_rsi": stochastic_rsi(
-                closes,
+
+            "stochastic_rsi": (
+                stochastic_rsi(
+                    closes,
+                )
+                if len(closes) >= 14
+                else []
             ),
         }
+
 
         trend = self._detect_trend(
             closes,
             moving_average,
         )
 
+
         momentum_state = self._detect_momentum(
             momentum,
         )
+
 
         return AnalysisResult(
             trend=trend,
@@ -107,28 +126,38 @@ class AnalysisEngine:
         averages: dict[str, object],
     ) -> str:
         """
-        Basic trend detection.
+        Detect simple market trend.
         """
 
-        sma_values = averages["sma"]
+        sma_values = averages.get(
+            "sma"
+        )
+
 
         if not sma_values:
             return "unknown"
 
+
         last_sma = sma_values[-1]
+
 
         if last_sma is None:
             return "unknown"
 
+
         last_price = closes[-1]
+
 
         if last_price > last_sma:
             return "bullish"
 
+
         if last_price < last_sma:
             return "bearish"
 
+
         return "sideways"
+
 
 
     @staticmethod
@@ -136,23 +165,31 @@ class AnalysisEngine:
         indicators: dict[str, object],
     ) -> str:
         """
-        Basic momentum detection.
+        Detect RSI momentum state.
         """
 
-        rsi_values = indicators["rsi"]
+        rsi_values = indicators.get(
+            "rsi"
+        )
+
 
         if not rsi_values:
             return "unknown"
 
+
         last_rsi = rsi_values[-1]
+
 
         if last_rsi is None:
             return "unknown"
 
+
         if last_rsi >= 70:
             return "overbought"
 
+
         if last_rsi <= 30:
             return "oversold"
+
 
         return "neutral"
