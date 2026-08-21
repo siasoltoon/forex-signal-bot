@@ -16,35 +16,24 @@ class AnalysisReport:
     """
     Final user-facing analysis report.
 
-    Contains:
+    Complete output model for:
 
-    Core:
-    - Trend
-    - Structure
-    - Score
-    - Signal
-    - Confidence
-
-    Confidence:
-    - Agreement
-    - Votes
-    - Warnings
-
-    Smart Money:
-    - Bias
-    - Structure
-    - Order Block
-    - Liquidity
-    - FVG
-
-    Explanation:
-    - Reasons
-    - Indicators
-
-    Future:
-    - Risk Management
-    - AI Layer
+    - Trading Bot
+    - Telegram API
+    - Web Dashboard
+    - AI Explanation Layer
     """
+
+
+
+    # ==================================================
+    # Market Context
+    # ==================================================
+
+    symbol: str = "UNKNOWN"
+
+
+    timeframe: str = "UNKNOWN"
 
 
 
@@ -52,19 +41,19 @@ class AnalysisReport:
     # Core Result
     # ==================================================
 
-    trend: str
+    trend: str = "neutral"
 
 
-    structure: str
+    structure: str = "unknown"
 
 
-    score: float
+    score: float = 0.0
 
 
-    signal: str
+    signal: str = "NEUTRAL"
 
 
-    confidence: float
+    confidence: float = 0.0
 
 
 
@@ -91,7 +80,6 @@ class AnalysisReport:
     )
 
 
-
     confidence_grade: str = "UNKNOWN"
 
 
@@ -104,6 +92,23 @@ class AnalysisReport:
 
 
     risk_level: str = "normal"
+
+
+
+    # ==================================================
+    # Risk Management Layer
+    # ==================================================
+
+    entry_price: float | None = None
+
+
+    stop_loss: float | None = None
+
+
+    take_profit: float | None = None
+
+
+    risk_reward: float | None = None
 
 
 
@@ -129,7 +134,7 @@ class AnalysisReport:
     premium_discount: str = "unknown"
 
 
-    
+
     # ==================================================
     # Explanation Layer
     # ==================================================
@@ -139,6 +144,9 @@ class AnalysisReport:
         default_factory=list
 
     )
+
+
+    analysis_text: str = ""
 
 
 
@@ -158,7 +166,9 @@ class AnalysisReport:
     # Helper Methods
     # ==================================================
 
-    def confidence_percentage(self) -> str:
+    def confidence_percentage(
+        self,
+    ) -> str:
         """
         Returns confidence as percentage.
         """
@@ -173,10 +183,12 @@ class AnalysisReport:
 
 
 
-    def confidence_label(self) -> str:
+    def confidence_label(
+        self,
+    ) -> str:
         """
         Converts confidence value
-        into human readable label.
+        into readable grade.
         """
 
         if self.confidence >= 0.85:
@@ -203,9 +215,11 @@ class AnalysisReport:
 
 
 
-    def vote_summary(self) -> dict[str, int]:
+    def vote_summary(
+        self,
+    ) -> dict[str, int]:
         """
-        Returns engine vote summary.
+        Returns engine votes.
         """
 
         return {
@@ -220,9 +234,11 @@ class AnalysisReport:
 
 
 
-    def is_strong_signal(self) -> bool:
+    def is_strong_signal(
+        self,
+    ) -> bool:
         """
-        Checks signal quality.
+        Checks if signal has strong confirmation.
         """
 
         return (
@@ -237,13 +253,45 @@ class AnalysisReport:
 
 
 
-    def summary(self) -> dict[str, Any]:
+    def has_risk_setup(
+        self,
+    ) -> bool:
         """
-        Compact report output.
-        Useful for Telegram/API/AI layer.
+        Checks if trade management exists.
+        """
+
+        return (
+
+            self.entry_price is not None
+
+            and
+
+            self.stop_loss is not None
+
+            and
+
+            self.take_profit is not None
+
+        )
+
+
+
+    def summary(
+        self,
+    ) -> dict[str, Any]:
+        """
+        Compact output for:
+
+        - Telegram
+        - API
+        - AI layer
         """
 
         return {
+
+            "symbol": self.symbol,
+
+            "timeframe": self.timeframe,
 
             "trend": self.trend,
 
@@ -264,5 +312,13 @@ class AnalysisReport:
             "risk": self.risk_level,
 
             "bias": self.decision_bias,
+
+            "entry": self.entry_price,
+
+            "stop_loss": self.stop_loss,
+
+            "take_profit": self.take_profit,
+
+            "risk_reward": self.risk_reward,
 
         }
