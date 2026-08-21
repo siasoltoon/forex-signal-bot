@@ -51,7 +51,7 @@ def test_candle_timestamp() -> None:
 def test_typical_price() -> None:
     candle = create_candle()
 
-    result = candle.typical_price()
+    result = candle.typical_price
 
     expected = (
         1.1200
