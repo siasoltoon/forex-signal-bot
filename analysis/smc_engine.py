@@ -4,6 +4,10 @@ from dataclasses import dataclass
 
 
 
+# ==================================================
+# SMC Result
+# ==================================================
+
 @dataclass(
     frozen=True
 )
@@ -22,6 +26,12 @@ class SMCResult:
 
     fair_value_gap: bool
 
+    premium_discount: str
+
+    equal_high: bool
+
+    equal_low: bool
+
     score: float
 
     strength: float
@@ -32,18 +42,26 @@ class SMCResult:
 
 
 
+# ==================================================
+# Smart Money Concepts Engine
+# ==================================================
+
 class SMCEngine:
     """
-    Smart Money Concepts Engine.
+    Advanced Smart Money Concepts Engine.
 
     Detects:
 
-    - BOS (Break Of Structure)
-    - CHoCH (Change Of Character)
+    - Swing High
+    - Swing Low
+    - BOS
+    - CHoCH
     - Liquidity Sweep
+    - Equal High
+    - Equal Low
     - Order Block
     - Fair Value Gap
-    - Market Bias
+    - Premium / Discount Zone
     """
 
 
@@ -68,9 +86,15 @@ class SMCEngine:
 
                 fair_value_gap=False,
 
-                score=0,
+                premium_discount="unknown",
 
-                strength=0,
+                equal_high=False,
+
+                equal_low=False,
+
+                score=0.0,
+
+                strength=0.0,
 
                 reason="Not enough price data.",
 
@@ -78,98 +102,262 @@ class SMCEngine:
 
 
 
-        recent = prices[-10:]
+        recent = prices[-20:]
 
 
-
-        high = max(recent)
-
-        low = min(recent)
 
         current = recent[-1]
 
 
 
-        previous_high = max(
-            recent[:-2]
+        high = max(
+            recent
         )
 
 
-        previous_low = min(
-            recent[:-2]
+        low = min(
+            recent
         )
 
 
 
-        # =========================
+        midpoint = (
+            high + low
+        ) / 2
+
+
+
+        # ==================================================
+        # Premium / Discount
+        # ==================================================
+
+        if current > midpoint:
+
+            premium_discount = "premium"
+
+        else:
+
+            premium_discount = "discount"
+
+
+
+
+        # ==================================================
+        # Swing Detection
+        # ==================================================
+
+        swing_highs = []
+
+        swing_lows = []
+
+
+
+        for i in range(
+            2,
+            len(recent) - 2
+        ):
+
+
+            if (
+                recent[i]
+                >
+                recent[i - 1]
+                and
+                recent[i]
+                >
+                recent[i + 1]
+            ):
+
+                swing_highs.append(
+                    recent[i]
+                )
+
+
+
+            if (
+                recent[i]
+                <
+                recent[i - 1]
+                and
+                recent[i]
+                <
+                recent[i + 1]
+            ):
+
+                swing_lows.append(
+                    recent[i]
+                )
+
+
+
+        last_swing_high = (
+
+            swing_highs[-1]
+
+            if swing_highs
+
+            else high
+
+        )
+
+
+
+        last_swing_low = (
+
+            swing_lows[-1]
+
+            if swing_lows
+
+            else low
+
+        )
+
+
+
+        # ==================================================
+        # Equal High / Equal Low
+        # ==================================================
+
+        equal_high = False
+
+        equal_low = False
+
+
+
+        if len(swing_highs) >= 2:
+
+
+            if abs(
+
+                swing_highs[-1]
+
+                -
+
+                swing_highs[-2]
+
+            ) < (
+
+                abs(current)
+                *
+                0.001
+
+            ):
+
+                equal_high = True
+
+
+
+
+        if len(swing_lows) >= 2:
+
+
+            if abs(
+
+                swing_lows[-1]
+
+                -
+
+                swing_lows[-2]
+
+            ) < (
+
+                abs(current)
+                *
+                0.001
+
+            ):
+
+                equal_low = True
+
+
+        
+        # ==================================================
+        # Liquidity Sweep Detection
+        # ==================================================
+
+        liquidity = "none"
+
+        structure = "none"
+
+        order_block = "none"
+
+        bias = "neutral"
+
+        score = 0.0
+
+        strength = 0.0
+
+        reason = (
+            "No Smart Money pattern detected."
+        )
+
+
+
+        # ==================================================
         # Bullish BOS
-        # =========================
+        # ==================================================
 
-        if current > previous_high:
+        if current > last_swing_high:
 
-            return SMCResult(
 
-                bias="bullish",
+            bias = "bullish"
 
-                structure="BOS",
+            structure = "BOS"
 
-                order_block="bullish",
+            order_block = "bullish"
 
-                liquidity="buy_side_taken",
+            liquidity = (
+                "buy_side_taken"
+            )
 
-                fair_value_gap=True,
+            score = 35
 
-                score=35,
+            strength = 80
 
-                strength=80,
-
-                reason=(
-
-                    "Bullish Smart Money BOS detected."
-
-                ),
-
+            reason = (
+                "Bullish BOS detected with "
+                "buy-side liquidity taken."
             )
 
 
 
-        # =========================
+        # ==================================================
         # Bearish BOS
-        # =========================
+        # ==================================================
 
-        if current < previous_low:
+        elif current < last_swing_low:
 
-            return SMCResult(
 
-                bias="bearish",
+            bias = "bearish"
 
-                structure="BOS",
+            structure = "BOS"
 
-                order_block="bearish",
+            order_block = "bearish"
 
-                liquidity="sell_side_taken",
+            liquidity = (
+                "sell_side_taken"
+            )
 
-                fair_value_gap=True,
+            score = -35
 
-                score=-35,
+            strength = 80
 
-                strength=80,
-
-                reason=(
-
-                    "Bearish Smart Money BOS detected."
-
-                ),
-
+            reason = (
+                "Bearish BOS detected with "
+                "sell-side liquidity taken."
             )
 
 
 
-        # =========================
+        # ==================================================
         # Liquidity Sweep High
-        # =========================
+        # ==================================================
 
-        if (
+        elif (
+
+            len(recent) >= 3
+
+            and
 
             recent[-2] >= high
 
@@ -179,37 +367,37 @@ class SMCEngine:
 
         ):
 
-            return SMCResult(
 
-                bias="bearish",
+            bias = "bearish"
 
-                structure="CHoCH",
+            structure = "CHoCH"
 
-                order_block="bearish",
+            liquidity = (
+                "high_sweep"
+            )
 
-                liquidity="high_sweep",
+            order_block = "bearish"
 
-                fair_value_gap=False,
+            score = -25
 
-                score=-25,
+            strength = 70
 
-                strength=70,
-
-                reason=(
-
-                    "Liquidity sweep above highs detected."
-
-                ),
-
+            reason = (
+                "Liquidity sweep above highs "
+                "detected."
             )
 
 
 
-        # =========================
+        # ==================================================
         # Liquidity Sweep Low
-        # =========================
+        # ==================================================
 
-        if (
+        elif (
+
+            len(recent) >= 3
+
+            and
 
             recent[-2] <= low
 
@@ -219,91 +407,121 @@ class SMCEngine:
 
         ):
 
-            return SMCResult(
 
-                bias="bullish",
+            bias = "bullish"
 
-                structure="CHoCH",
+            structure = "CHoCH"
 
-                order_block="bullish",
+            liquidity = (
+                "low_sweep"
+            )
 
-                liquidity="low_sweep",
+            order_block = "bullish"
 
-                fair_value_gap=False,
+            score = 25
 
-                score=25,
+            strength = 70
 
-                strength=70,
-
-                reason=(
-
-                    "Liquidity sweep below lows detected."
-
-                ),
-
+            reason = (
+                "Liquidity sweep below lows "
+                "detected."
             )
 
 
 
-        # =========================
+        # ==================================================
         # Fair Value Gap
-        # =========================
+        # ==================================================
 
-        if len(prices) >= 3:
-
-            candle1 = prices[-3]
-
-            candle3 = prices[-1]
+        fair_value_gap = False
 
 
-            if abs(candle3 - candle1) > abs(current) * 0.002:
 
-                return SMCResult(
+        if len(recent) >= 3:
 
-                    bias="neutral",
 
-                    structure="range",
+            candle1 = recent[-3]
 
-                    order_block="none",
+            candle3 = recent[-1]
 
-                    liquidity="none",
 
-                    fair_value_gap=True,
 
-                    score=10,
+            gap = abs(
+                candle3 - candle1
+            )
 
-                    strength=50,
 
-                    reason=(
 
-                        "Possible Fair Value Gap detected."
+            if gap > abs(current) * 0.002:
 
-                    ),
 
+                fair_value_gap = True
+
+
+
+                if score == 0:
+
+
+                    score = 10
+
+                    strength = 50
+
+
+
+                reason += (
+                    " Fair Value Gap detected."
                 )
 
 
 
+        # ==================================================
+        # Equal Liquidity Bonus
+        # ==================================================
+
+        if equal_high:
+
+
+            reason += (
+                " Equal highs liquidity present."
+            )
+
+
+
+        if equal_low:
+
+
+            reason += (
+                " Equal lows liquidity present."
+            )
+
+
+
+        # ==================================================
+        # Final Result
+        # ==================================================
+
         return SMCResult(
 
-            bias="neutral",
+            bias=bias,
 
-            structure="none",
+            structure=structure,
 
-            order_block="none",
+            order_block=order_block,
 
-            liquidity="none",
+            liquidity=liquidity,
 
-            fair_value_gap=False,
+            fair_value_gap=fair_value_gap,
 
-            score=0,
+            premium_discount=premium_discount,
 
-            strength=0,
+            equal_high=equal_high,
 
-            reason=(
+            equal_low=equal_low,
 
-                "No Smart Money pattern detected."
+            score=score,
 
-            ),
+            strength=strength,
+
+            reason=reason,
 
         )
