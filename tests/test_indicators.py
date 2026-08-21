@@ -94,10 +94,20 @@ def test_macd() -> None:
 
     assert isinstance(
         result,
-        tuple,
+        dict,
     )
 
-    assert len(result) == 3
+    assert "macd" in result
+
+    assert "signal" in result
+
+    assert len(
+        result["macd"]
+    ) == len(values)
+
+    assert len(
+        result["signal"]
+    ) == len(values)
 
 
 def test_stochastic_rsi() -> None:
