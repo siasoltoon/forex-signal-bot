@@ -57,6 +57,11 @@ from analysis.harmonic_engine import (
 )
 
 
+from analysis.brooks_engine import (
+    BrooksEngine,
+)
+
+
 
 class FullAnalysisEngine:
     """
@@ -72,6 +77,7 @@ class FullAnalysisEngine:
     - Candlestick
     - Elliott Wave
     - Harmonic Patterns
+    - Al Brooks Price Action
     - Scoring
     """
 
@@ -117,6 +123,11 @@ class FullAnalysisEngine:
 
         self.harmonic_engine = (
             HarmonicEngine()
+        )
+
+
+        self.brooks_engine = (
+            BrooksEngine()
         )
 
 
@@ -291,10 +302,23 @@ class FullAnalysisEngine:
 
 
         # =========================
+        # Brooks Price Action
+        # =========================
+
+        brooks_result = (
+            self.brooks_engine.analyze(
+                closes
+            )
+        )
+
+
+
+        # =========================
         # Build Analysis Result
         # =========================
 
         analysis_result = AnalysisResult(
+
 
             trend=structure.trend,
 
@@ -371,6 +395,14 @@ class FullAnalysisEngine:
 
 
 
+            brooks_score=(
+
+                brooks_result.score
+
+            ),
+
+
+
             reasons=(
 
                 momentum_result.reasons
@@ -390,6 +422,8 @@ class FullAnalysisEngine:
                     elliott_result.reason,
 
                     harmonic_result.reason,
+
+                    brooks_result.reason,
 
                 ]
 
