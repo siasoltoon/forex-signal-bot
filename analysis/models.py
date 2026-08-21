@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from analysis.candle import Candle
+
 
 
 @dataclass(
@@ -50,6 +52,7 @@ class AnalysisResult:
 
     Contains:
     - Market structure
+    - Candles
     - Indicators
     - Momentum
     - Price Action
@@ -70,6 +73,13 @@ class AnalysisResult:
 
 
     indicators: dict[str, Any]
+
+
+    # Standard OHLC candles
+
+    candles: list[Candle] = field(
+        default_factory=list
+    )
 
 
 
@@ -101,7 +111,9 @@ class AnalysisResult:
 
 
 
-    # Future engines
+    # =====================
+    # Future AI Engines
+    # =====================
 
     candlestick_score: float = 0.0
 
