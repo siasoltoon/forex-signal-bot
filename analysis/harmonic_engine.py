@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isclose
 
 
 
@@ -23,7 +22,6 @@ class HarmonicResult:
 
 
 
-
 class HarmonicEngine:
     """
     Detects harmonic trading patterns.
@@ -36,7 +34,7 @@ class HarmonicEngine:
     - Butterfly
     - Crab
 
-    Uses Fibonacci ratio validation.
+    Fibonacci based detection.
     """
 
 
@@ -47,18 +45,14 @@ class HarmonicEngine:
     ) -> HarmonicResult:
 
 
+
         if len(prices) < 5:
 
             return HarmonicResult(
-
                 pattern="none",
-
                 score=0,
-
                 strength=0,
-
                 reason="Not enough price data.",
-
             )
 
 
@@ -84,42 +78,38 @@ class HarmonicEngine:
         if xa == 0:
 
             return HarmonicResult(
-
                 pattern="none",
-
                 score=0,
-
                 strength=0,
-
                 reason="Invalid harmonic structure.",
-
             )
 
 
 
+        bullish = d > c
+
+
+
         # =========================
-        # AB = CD Pattern
+        # AB = CD
         # =========================
 
         if self._ratio_match(
             ab,
             cd,
             1.0,
-            tolerance=0.15,
+            0.15,
         ):
-
-            direction = (
-                15
-                if d > c
-                else -15
-            )
-
 
             return HarmonicResult(
 
                 pattern="AB_CD",
 
-                score=direction,
+                score=(
+                    15
+                    if bullish
+                    else -15
+                ),
 
                 strength=75,
 
@@ -153,12 +143,15 @@ class HarmonicEngine:
 
         ):
 
-
             return HarmonicResult(
 
                 pattern="Gartley",
 
-                score=20,
+                score=(
+                    20
+                    if bullish
+                    else -20
+                ),
 
                 strength=85,
 
@@ -179,7 +172,7 @@ class HarmonicEngine:
             self._ratio_match(
                 ab,
                 xa,
-                0.5,
+                0.50,
             )
 
             and
@@ -192,12 +185,15 @@ class HarmonicEngine:
 
         ):
 
-
             return HarmonicResult(
 
                 pattern="Bat",
 
-                score=18,
+                score=(
+                    18
+                    if bullish
+                    else -18
+                ),
 
                 strength=80,
 
@@ -213,22 +209,21 @@ class HarmonicEngine:
         # Butterfly
         # =========================
 
-        if (
-
-            self._ratio_match(
-                cd,
-                xa,
-                1.27,
-            )
-
+        if self._ratio_match(
+            cd,
+            xa,
+            1.27,
         ):
-
 
             return HarmonicResult(
 
                 pattern="Butterfly",
 
-                score=22,
+                score=(
+                    22
+                    if bullish
+                    else -22
+                ),
 
                 strength=88,
 
@@ -244,22 +239,21 @@ class HarmonicEngine:
         # Crab
         # =========================
 
-        if (
-
-            self._ratio_match(
-                cd,
-                xa,
-                1.618,
-            )
-
+        if self._ratio_match(
+            cd,
+            xa,
+            1.618,
         ):
-
 
             return HarmonicResult(
 
                 pattern="Crab",
 
-                score=25,
+                score=(
+                    25
+                    if bullish
+                    else -25
+                ),
 
                 strength=90,
 
@@ -287,6 +281,10 @@ class HarmonicEngine:
 
 
 
+    # =========================
+    # Fibonacci Ratio Checker
+    # =========================
+
     @staticmethod
     def _ratio_match(
         value: float,
@@ -296,16 +294,29 @@ class HarmonicEngine:
     ) -> bool:
 
 
+
         if reference == 0:
 
             return False
 
 
-        ratio = value / reference
+
+        ratio = (
+            value / reference
+        )
 
 
-        return isclose(
-            ratio,
-            target,
-            rel_tol=tolerance,
+
+        return (
+
+            target - tolerance
+
+            <=
+
+            ratio
+
+            <=
+
+            target + tolerance
+
         )
