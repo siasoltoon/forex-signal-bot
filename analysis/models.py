@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+
 from dataclasses import dataclass, field
+
 from typing import Any
 
 
@@ -57,12 +59,13 @@ class AnalysisResult:
     - Indicators
     - Momentum
     - Supply/Demand
-    - Future price action engines
+    - Price Action
     """
 
 
-    trend: str
+    # Main states
 
+    trend: str
 
     momentum: str
 
@@ -74,22 +77,31 @@ class AnalysisResult:
 
 
 
-    # Advanced scoring fields
+    # =========================
+    # Advanced Scoring Inputs
+    # =========================
+
 
     trend_score: float = 0.0
-
-
-    momentum_score: float = 0.0
 
 
     structure_score: float = 0.0
 
 
+    momentum_score: float = 0.0
+
+
     volatility_score: float = 0.0
 
 
+    price_action_score: float = 0.0
 
-    # Explanation layer
+
+
+    # =========================
+    # Explanation Layer
+    # =========================
+
 
     reasons: list[str] = field(
         default_factory=list
@@ -122,11 +134,15 @@ class AnalysisReport:
 
 
 
-    # Extended information
+    # =========================
+    # Extended Information
+    # =========================
+
 
     reasons: list[str] = field(
         default_factory=list
     )
+
 
     indicators: dict[str, Any] = field(
         default_factory=dict
