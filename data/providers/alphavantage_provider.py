@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -17,33 +16,76 @@ logger = setup_logger()
 
 class AlphaVantageProvider(MarketDataProvider):
     """
-    Alpha Vantage market data provider.
+    Production-grade Alpha Vantage market data provider.
 
-    Converts Alpha Vantage intraday
-    responses into the application's
-    standard Candle model.
+    Responsibilities:
+    - Validate request parameters.
+    - Normalize supported timeframes.
+    - Request intraday data through AlphaVantageClient.
+    - Validate Alpha Vantage responses.
+    - Parse and normalize candle data.
+    - Convert API data into Candle models.
+    - Preserve chronological ordering.
+    - Return at most `limit` candles.
     """
 
     name = "alphavantage"
 
-    _TIMEFRAME_ALIASES: Final[dict[str, str]] = {
+    _TIMEFRAME_ALIASES: Final[
+        dict[str, str]
+    ] = {
         "M1": "1min",
+        "1M": "1min",
         "M5": "5min",
         "M15": "15min",
         "M30": "30min",
         "H1": "60min",
     }
 
-    def __init__(self) -> None:
-        self.client = AlphaVantageClient()
+    _SUPPORTED_INTERVALS: Final[
+        frozenset[str]
+    ] = frozenset(
+        {
+            "1min",
+            "5min",
+            "15min",
+            "30min",
+            "60min",
+        }
+    )
 
-    def _normalize_timeframe(
+    _MAX_LIMIT: Final[int] = 5000
+
+    def __init__(
         self,
+        client: AlphaVantageClient | None = None,
+    ) -> None:
+        self.client = (
+            client
+            if client is not None
+            else AlphaVantageClient()
+        )
+
+    @classmethod
+    def _normalize_timeframe(
+        cls,
         timeframe: str,
     ) -> str:
-        normalized = timeframe.strip().upper()
+        if not isinstance(
+            timeframe,
+            str,
+        ):
+            raise TypeError(
+                "timeframe must be a string."
+            )
 
-        interval = self._TIMEFRAME_ALIASES.get(
+        normalized = (
+            timeframe
+            .strip()
+            .upper()
+        )
+
+        interval = cls._TIMEFRAME_ALIASES.get(
             normalized
         )
 
@@ -55,28 +97,212 @@ class AlphaVantageProvider(MarketDataProvider):
 
         return interval
 
+    @classmethod
+    def _validate_timeframe(
+        cls,
+        timeframe: str,
+    ) -> str:
+        interval = cls._normalize_timeframe(
+            timeframe
+        )
+
+        if interval not in cls._SUPPORTED_INTERVALS:
+            raise ValueError(
+                f"Unsupported Alpha Vantage interval: "
+                f"{interval}"
+            )
+
+        return interval
+
     @staticmethod
+    def _validate_request(
+        symbol: str,
+        timeframe: str,
+        limit: int,
+    ) -> None:
+        if not isinstance(
+            symbol,
+            str,
+        ):
+            raise TypeError(
+                "symbol must be a string."
+            )
+
+        if not symbol.strip():
+            raise ValueError(
+                "symbol cannot be empty."
+            )
+
+        if not isinstance(
+            timeframe,
+            str,
+        ):
+            raise TypeError(
+                "timeframe must be a string."
+            )
+
+        if not timeframe.strip():
+            raise ValueError(
+                "timeframe cannot be empty."
+            )
+
+        if not isinstance(
+            limit,
+            int,
+        ):
+            raise TypeError(
+                "limit must be an integer."
+            )
+
+        if limit < 1:
+            raise ValueError(
+                "limit must be greater than zero."
+            )
+
+        if limit > AlphaVantageProvider._MAX_LIMIT:
+            raise ValueError(
+                f"limit cannot exceed "
+                f"{AlphaVantageProvider._MAX_LIMIT}."
+            )
+
+    @staticmethod
+    def _parse_timestamp(
+        value: object,
+    ) -> datetime:
+        if not isinstance(
+            value,
+            str,
+        ):
+            raise TypeError(
+                "Alpha Vantage timestamp "
+                "must be a string."
+            )
+
+        timestamp_text = value.strip()
+
+        timestamp = datetime.strptime(
+            timestamp_text,
+            "%Y-%m-%d %H:%M:%S",
+        )
+
+        return timestamp.replace(
+            tzinfo=timezone.utc
+        )
+
+    @staticmethod
+    def _parse_price(
+        value: object,
+    ) -> float:
+        price = float(value)
+
+        if price <= 0:
+            raise ValueError(
+                "Price must be greater than zero."
+            )
+
+        return price
+
+    @staticmethod
+    def _parse_volume(
+        value: object,
+    ) -> float:
+        if value is None:
+            return 0.0
+
+        volume = float(value)
+
+        if volume < 0:
+            raise ValueError(
+                "Volume cannot be negative."
+            )
+
+        return volume
+
+    @classmethod
     def _find_time_series(
+        cls,
         response: dict[str, object],
-    ) -> tuple[str, dict[str, dict[str, str]]]:
+    ) -> dict[str, object]:
         for key, value in response.items():
             if (
-                key.lower().startswith(
+                isinstance(key, str)
+                and key.lower().startswith(
                     "time series"
                 )
-                and isinstance(value, dict)
-            ):
-                return (
-                    key,
+                and isinstance(
                     value,
+                    dict,
                 )
+            ):
+                return value
 
         raise ApplicationError(
             "Alpha Vantage time series was not found.",
             {
-                "provider": "alphavantage",
+                "provider": cls.name,
             },
         )
+
+    def _convert_candle(
+        self,
+        symbol: str,
+        timestamp_text: object,
+        values: object,
+    ) -> Candle | None:
+        if not isinstance(
+            values,
+            dict,
+        ):
+            logger.warning(
+                "Skipping invalid Alpha Vantage "
+                "candle payload."
+            )
+
+            return None
+
+        try:
+            timestamp = self._parse_timestamp(
+                timestamp_text
+            )
+
+            candle = Candle(
+                symbol=symbol,
+                timestamp=timestamp,
+                open=self._parse_price(
+                    values["1. open"]
+                ),
+                high=self._parse_price(
+                    values["2. high"]
+                ),
+                low=self._parse_price(
+                    values["3. low"]
+                ),
+                close=self._parse_price(
+                    values["4. close"]
+                ),
+                volume=self._parse_volume(
+                    values.get(
+                        "5. volume",
+                        0,
+                    )
+                ),
+            )
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError,
+            OverflowError,
+        ) as error:
+            logger.warning(
+                "Skipping invalid Alpha Vantage "
+                "candle: %s",
+                error,
+            )
+
+            return None
+
+        return candle
 
     async def get_candles(
         self,
@@ -85,45 +311,46 @@ class AlphaVantageProvider(MarketDataProvider):
         limit: int = 100,
     ) -> list[Candle]:
         """
-        Fetch intraday candles from Alpha Vantage.
+        Fetch and normalize Alpha Vantage candles.
         """
 
-        if not symbol:
-            raise ValueError(
-                "symbol cannot be empty."
-            )
+        self._validate_request(
+            symbol=symbol,
+            timeframe=timeframe,
+            limit=limit,
+        )
 
-        if not timeframe:
-            raise ValueError(
-                "timeframe cannot be empty."
-            )
+        normalized_symbol = (
+            symbol
+            .strip()
+            .upper()
+        )
 
-        if limit < 1:
-            raise ValueError(
-                "limit must be greater than zero."
-            )
-
-        interval = self._normalize_timeframe(
+        interval = self._validate_timeframe(
             timeframe
         )
 
         try:
-            response = await self.client.get_intraday(
-                symbol=symbol,
-                interval=interval,
+            response = (
+                await self.client.get_intraday(
+                    symbol=normalized_symbol,
+                    interval=interval,
+                )
             )
 
         except Exception as error:
             logger.exception(
-                "Alpha Vantage candle request failed."
+                "Alpha Vantage candle request "
+                "failed for %s.",
+                normalized_symbol,
             )
 
             raise ApplicationError(
                 "Failed to fetch Alpha Vantage candles.",
                 {
                     "provider": self.name,
-                    "symbol": symbol,
-                    "timeframe": timeframe,
+                    "symbol": normalized_symbol,
+                    "timeframe": interval,
                     "limit": limit,
                 },
             ) from error
@@ -136,7 +363,7 @@ class AlphaVantageProvider(MarketDataProvider):
                 "Invalid Alpha Vantage response.",
                 {
                     "provider": self.name,
-                    "symbol": symbol,
+                    "symbol": normalized_symbol,
                 },
             )
 
@@ -145,90 +372,21 @@ class AlphaVantageProvider(MarketDataProvider):
                 "Alpha Vantage returned an error.",
                 {
                     "provider": self.name,
-                    "symbol": symbol,
+                    "symbol": normalized_symbol,
                     "error": response.get(
                         "Error Message"
                     ),
                 },
             )
 
-        _, time_series = self._find_time_series(
+        if "Note" in response:
+            logger.warning(
+                "Alpha Vantage rate limit message: %s",
+                response.get("Note"),
+            )
+
+        time_series = self._find_time_series(
             response
         )
 
-        candles: list[Candle] = []
-
-        for timestamp_text, values in time_series.items():
-
-            if not isinstance(
-                values,
-                dict,
-            ):
-                logger.warning(
-                    "Skipping invalid Alpha Vantage candle."
-                )
-                continue
-
-            try:
-                timestamp = datetime.strptime(
-                    timestamp_text,
-                    "%Y-%m-%d %H:%M:%S",
-                ).replace(
-                    tzinfo=timezone.utc
-                )
-
-                candle = Candle(
-                    symbol=symbol,
-                    timestamp=timestamp,
-                    open=float(
-                        values["1. open"]
-                    ),
-                    high=float(
-                        values["2. high"]
-                    ),
-                    low=float(
-                        values["3. low"]
-                    ),
-                    close=float(
-                        values["4. close"]
-                    ),
-                    volume=float(
-                        values.get(
-                            "5. volume",
-                            0,
-                        )
-                    ),
-                )
-
-            except (
-                KeyError,
-                TypeError,
-                ValueError,
-            ) as error:
-
-                logger.warning(
-                    "Skipping invalid Alpha Vantage candle: %s",
-                    error,
-                )
-
-                continue
-
-            candles.append(
-                candle
-            )
-
-        candles.sort(
-            key=lambda candle: candle.timestamp
-        )
-
-        if len(candles) > limit:
-            candles = candles[-limit:]
-
-        logger.info(
-            "Alpha Vantage returned %d valid candles "
-            "for %s.",
-            len(candles),
-            symbol,
-        )
-
-        return candles
+       
