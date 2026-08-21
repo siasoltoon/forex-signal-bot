@@ -175,32 +175,28 @@ class FullAnalysisEngine:
         )
 
 
-
-        # Decision Layer
+        # Decision
 
         self.decision_engine = (
             DecisionEngine()
         )
 
 
-
-        # Confidence Layer
+        # Confidence
 
         self.confidence_engine = (
             ConfidenceEngine()
         )
 
 
-
-        # Risk Layer
+        # Risk
 
         self.risk_engine = (
             RiskEngine()
         )
 
 
-
-        # ATR Volatility Layer
+        # ATR
 
         self.atr_engine = (
             ATREngine()
@@ -297,85 +293,151 @@ class FullAnalysisEngine:
         )
 
 
+        atr_value = (
+
+            atr_result.atr
+
+            if atr_result.atr is not None
+
+            else 0.0
+
+        )
+
+
+        atr_percentage = (
+
+            atr_result.atr_percentage
+
+            if atr_result.atr_percentage is not None
+
+            else 0.0
+
+        )
+
+
 
         # ==================================================
-        # Run Engines
+        # Run Analysis Engines
         # ==================================================
 
         structure = (
+
             self.structure_detector.analyze(
+
                 closes
+
             )
+
         )
 
 
         indicator_snapshot = (
+
             self.indicator_engine.calculate(
+
                 closes
+
             )
+
         )
 
 
         momentum_result = (
+
             self.momentum_engine.analyze(
+
                 indicator_snapshot.values
+
             )
+
         )
 
 
         price_action_result = (
+
             self.price_action_engine.analyze(
+
                 closes
+
             )
+
         )
 
 
         supply_demand_result = (
+
             self.supply_demand_engine.analyze(
+
                 closes
+
             )
+
         )
 
 
         candlestick_result = (
+
             self.candlestick_engine.analyze(
+
                 candle_data
+
             )
+
         )
 
 
         elliott_result = (
+
             self.elliott_engine.analyze(
+
                 closes
+
             )
+
         )
 
 
         harmonic_result = (
+
             self.harmonic_engine.analyze(
+
                 closes
+
             )
+
         )
 
 
         brooks_result = (
+
             self.brooks_engine.analyze(
+
                 closes
+
             )
+
         )
 
 
         wyckoff_result = (
+
             self.wyckoff_engine.analyze(
+
                 closes
+
             )
+
         )
 
 
         smc_result = (
+
             self.smc_engine.analyze(
+
                 closes
+
             )
+
         )
 
 
@@ -445,7 +507,7 @@ class FullAnalysisEngine:
 
             volatility_score=(
 
-                atr_result.atr_percentage
+                atr_percentage
 
             ),
 
@@ -635,7 +697,7 @@ class FullAnalysisEngine:
                 current_price=closes[-1],
 
 
-                atr=atr_result.atr,
+                atr=atr_value,
 
 
                 confidence=confidence_result.confidence,
@@ -716,8 +778,6 @@ class FullAnalysisEngine:
 
 
 
-            # Confidence
-
             agreement=confidence_result.agreement,
 
 
@@ -736,8 +796,6 @@ class FullAnalysisEngine:
             confidence_grade=confidence_grade,
 
 
-
-            # Decision
 
             decision_bias=decision.bias,
 
@@ -802,9 +860,11 @@ class FullAnalysisEngine:
 
                     risk_result.reason,
 
-                    f"ATR: {atr_result.atr}",
 
-                    f"Volatility: {atr_result.volatility}",
+                    f"ATR: {atr_value}",
+
+
+                    f"ATR Percentage: {atr_percentage}",
 
                 ]
 
