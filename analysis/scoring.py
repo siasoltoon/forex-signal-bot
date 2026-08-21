@@ -1,23 +1,16 @@
 from __future__ import annotations
 
 from analysis.models import (
+    SignalComponent,
     AnalysisScore,
     AnalysisResult,
-    SignalComponent,
 )
 
 
 class AnalysisScorer:
     """
-    Professional scoring engine.
-
-    Combines:
-    - Trend
-    - Momentum
-    - Supply/Demand
-    - Market Structure
+    Calculate final technical analysis score.
     """
-
 
     def score(
         self,
@@ -26,13 +19,11 @@ class AnalysisScorer:
 
         components: list[SignalComponent] = []
 
-
         components.append(
             self._score_trend(
                 analysis_result.trend
             )
         )
-
 
         components.append(
             self._score_momentum(
@@ -40,12 +31,17 @@ class AnalysisScorer:
             )
         )
 
+        # Supply / Demand (optional)
+        supply_demand = getattr(
+            analysis_result,
+            "supply_demand",
+            None,
+        )
 
-        if analysis_result.supply_demand:
-
+        if supply_demand:
             components.append(
                 self._score_supply_demand(
-                    analysis_result.supply_demand
+                    supply_demand
                 )
             )
 
@@ -61,7 +57,7 @@ class AnalysisScorer:
             min(
                 100,
                 total_score,
-            )
+            ),
         )
 
 
@@ -76,26 +72,23 @@ class AnalysisScorer:
         )
 
 
-
     @staticmethod
     def _score_trend(
         trend: str,
     ) -> SignalComponent:
 
-
         if trend == "bullish":
             return SignalComponent(
                 name="trend",
                 score=30,
-                reason="Price above moving average.",
+                reason="Price is above moving average.",
             )
-
 
         if trend == "bearish":
             return SignalComponent(
                 name="trend",
                 score=-30,
-                reason="Price below moving average.",
+                reason="Price is below moving average.",
             )
 
 
@@ -106,18 +99,16 @@ class AnalysisScorer:
         )
 
 
-
     @staticmethod
     def _score_momentum(
         momentum: str,
     ) -> SignalComponent:
 
-
         if momentum == "oversold":
             return SignalComponent(
                 name="momentum",
                 score=20,
-                reason="RSI oversold.",
+                reason="Market is oversold.",
             )
 
 
@@ -125,7 +116,7 @@ class AnalysisScorer:
             return SignalComponent(
                 name="momentum",
                 score=-20,
-                reason="RSI overbought.",
+                reason="Market is overbought.",
             )
 
 
@@ -136,45 +127,32 @@ class AnalysisScorer:
         )
 
 
-
     @staticmethod
     def _score_supply_demand(
-        zone,
+        supply_demand,
     ) -> SignalComponent:
 
-
-        if getattr(
-            zone,
-            "type",
-            None
-        ) == "demand":
-
+        if supply_demand == "demand":
             return SignalComponent(
                 name="supply_demand",
-                score=25,
-                reason="Price inside demand zone.",
+                score=20,
+                reason="Demand zone detected.",
             )
 
 
-        if getattr(
-            zone,
-            "type",
-            None
-        ) == "supply":
-
+        if supply_demand == "supply":
             return SignalComponent(
                 name="supply_demand",
-                score=-25,
-                reason="Price inside supply zone.",
+                score=-20,
+                reason="Supply zone detected.",
             )
 
 
         return SignalComponent(
             name="supply_demand",
             score=0,
-            reason="No active zone.",
+            reason="No supply/demand signal.",
         )
-
 
 
     @staticmethod
@@ -182,12 +160,10 @@ class AnalysisScorer:
         score: float,
     ) -> str:
 
-        if score >= 50:
+        if score > 0:
             return "BUY"
 
-
-        if score <= -50:
+        if score < 0:
             return "SELL"
 
-
-        return "HOLD"
+        return "NEUTRAL"
