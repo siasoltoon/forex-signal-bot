@@ -1,45 +1,52 @@
-
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
 
-from data.models import Candle
-
-
-@dataclass(frozen=True)
-class IndicatorResult:
+def validate_series(
+    values: list[float],
+) -> None:
     """
-    Standard indicator output.
+    Validate indicator input series.
     """
 
-    name: str
+    if not isinstance(
+        values,
+        list,
+    ):
+        raise TypeError(
+            "values must be a list."
+        )
 
-    value: float
+    if len(values) == 0:
+        raise ValueError(
+            "values cannot be empty."
+        )
 
-    metadata: dict[str, object] | None = None
+    for value in values:
+        if not isinstance(
+            value,
+            (int, float),
+        ):
+            raise TypeError(
+                "series values must be numeric."
+            )
 
 
-class Indicator(ABC):
+def validate_period(
+    period: int,
+) -> None:
     """
-    Base class for all technical indicators.
-
-    Every indicator must:
-    - Receive candle data.
-    - Calculate a result.
-    - Return a standardized output.
+    Validate indicator period.
     """
 
-    name: str = "unknown"
+    if not isinstance(
+        period,
+        int,
+    ):
+        raise TypeError(
+            "period must be an integer."
+        )
 
-
-    @abstractmethod
-    def calculate(
-        self,
-        candles: list[Candle],
-    ) -> IndicatorResult:
-        """
-        Calculate indicator value.
-        """
-
-        raise NotImplementedError
+    if period < 1:
+        raise ValueError(
+            "period must be greater than zero."
+        )
