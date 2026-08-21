@@ -13,20 +13,49 @@ from dataclasses import dataclass
 )
 class RiskResult:
     """
-    Trade risk calculation output.
+    Professional trade risk output.
     """
+
 
     entry_price: float | None
 
+
     stop_loss: float | None
+
 
     take_profit: float | None
 
+
+    take_profit_1: float | None
+
+
+    take_profit_2: float | None
+
+
+    take_profit_3: float | None
+
+
     risk_reward: float | None
+
+
+    position_size: float | None
+
+
+    risk_amount: float | None
+
+
+    trailing_stop: float | None
+
 
     risk_level: str
 
+
+    market_condition: str
+
+
     reason: str
+
+
 
 
 
@@ -36,17 +65,17 @@ class RiskResult:
 
 class RiskEngine:
     """
-    Advanced trade risk management engine.
+    Professional risk management engine.
 
     Features:
 
-    - Entry calculation
-    - ATR based Stop Loss
-    - ATR based Take Profit
-    - Risk Reward calculation
-    - Dynamic risk level
-    - Confidence aware risk
-    - Score aware risk
+    - ATR Stop Loss
+    - Multi Take Profit
+    - Position Sizing
+    - Risk Percentage
+    - Trailing Stop
+    - Market Condition Filter
+    - Confidence Based Risk
     """
 
 
@@ -55,6 +84,8 @@ class RiskEngine:
         self,
         risk_reward_target: float = 2.0,
         atr_multiplier: float = 1.5,
+        account_balance: float = 1000.0,
+        risk_percent: float = 1.0,
     ) -> None:
 
 
@@ -68,6 +99,16 @@ class RiskEngine:
         )
 
 
+        self.account_balance = (
+            account_balance
+        )
+
+
+        self.risk_percent = (
+            risk_percent
+        )
+
+
 
     # ==================================================
     # Risk Level
@@ -78,10 +119,6 @@ class RiskEngine:
         confidence: float,
         score: float,
     ) -> str:
-        """
-        Determines risk level from
-        confidence and decision score.
-        """
 
 
         if (
@@ -98,19 +135,59 @@ class RiskEngine:
 
 
 
-        elif (
-
-            confidence >= 0.50
-
-        ):
+        elif confidence >= 0.50:
 
             return "MEDIUM"
 
 
 
-        else:
+        return "HIGH"
 
-            return "HIGH"
+
+
+
+    # ==================================================
+    # Market Condition
+    # ==================================================
+
+    @staticmethod
+    def _market_condition(
+        atr: float | None,
+        price: float,
+    ) -> str:
+
+
+        if atr is None:
+
+            return "NORMAL"
+
+
+
+        atr_percent = (
+
+            atr
+
+            /
+
+            price
+
+        ) * 100
+
+
+
+        if atr_percent < 0.2:
+
+            return "LOW_VOLATILITY"
+
+
+
+        elif atr_percent > 2:
+
+            return "HIGH_VOLATILITY"
+
+
+
+        return "NORMAL"
 
 
 
@@ -125,16 +202,6 @@ class RiskEngine:
         atr: float | None = None,
         risk_distance: float | None = None,
     ) -> float:
-        """
-        Calculates stop distance.
-
-        Priority:
-
-        1. Manual risk distance
-        2. ATR based distance
-        3. Percentage fallback
-        """
-
 
 
         if risk_distance is not None:
@@ -145,7 +212,7 @@ class RiskEngine:
 
 
 
-        if atr is not None and atr > 0:
+        if atr and atr > 0:
 
             return (
 
@@ -170,6 +237,88 @@ class RiskEngine:
         )
 
 
+    
+    # ==================================================
+    # Position Size
+    # ==================================================
+
+    def _calculate_position_size(
+        self,
+        risk_distance: float,
+    ) -> tuple[float, float]:
+        """
+        Calculates position size.
+
+        Returns:
+
+        position_size
+        risk_amount
+        """
+
+
+        risk_amount = (
+
+            self.account_balance
+
+            *
+
+            (
+
+                self.risk_percent
+
+                /
+
+                100
+
+            )
+
+        )
+
+
+        if risk_distance <= 0:
+
+            return (
+
+                0.0,
+
+                risk_amount
+
+            )
+
+
+        position_size = (
+
+            risk_amount
+
+            /
+
+            risk_distance
+
+        )
+
+
+        return (
+
+            round(
+
+                position_size,
+
+                4
+
+            ),
+
+            round(
+
+                risk_amount,
+
+                2
+
+            ),
+
+        )
+
+
+
 
     # ==================================================
     # BUY Setup
@@ -180,10 +329,8 @@ class RiskEngine:
         price: float,
         risk_distance: float,
         risk_level: str,
+        market_condition: str,
     ) -> RiskResult:
-
-
-        entry = price
 
 
         stop_loss = (
@@ -197,7 +344,18 @@ class RiskEngine:
         )
 
 
-        take_profit = (
+        tp1 = (
+
+            price
+
+            +
+
+            risk_distance
+
+        )
+
+
+        tp2 = (
 
             price
 
@@ -209,7 +367,37 @@ class RiskEngine:
 
                 *
 
-                self.risk_reward_target
+                2
+
+            )
+
+        )
+
+
+        tp3 = (
+
+            price
+
+            +
+
+            (
+
+                risk_distance
+
+                *
+
+                3
+
+            )
+
+        )
+
+
+        position_size, risk_amount = (
+
+            self._calculate_position_size(
+
+                risk_distance
 
             )
 
@@ -219,7 +407,7 @@ class RiskEngine:
         return RiskResult(
 
             entry_price=round(
-                entry,
+                price,
                 5
             ),
 
@@ -231,27 +419,61 @@ class RiskEngine:
 
 
             take_profit=round(
-                take_profit,
+                tp2,
                 5
             ),
 
 
-            risk_reward=self.risk_reward_target,
+            take_profit_1=round(
+                tp1,
+                5
+            ),
+
+
+            take_profit_2=round(
+                tp2,
+                5
+            ),
+
+
+            take_profit_3=round(
+                tp3,
+                5
+            ),
+
+
+            risk_reward=2.0,
+
+
+            position_size=position_size,
+
+
+            risk_amount=risk_amount,
+
+
+            trailing_stop=round(
+                tp1,
+                5
+            ),
 
 
             risk_level=risk_level,
 
 
+            market_condition=market_condition,
+
+
             reason=(
 
-                "Bullish setup risk calculated using ATR and confidence"
+                "Professional bullish risk plan created"
 
             ),
 
         )
 
 
-    
+
+
     # ==================================================
     # SELL Setup
     # ==================================================
@@ -261,10 +483,8 @@ class RiskEngine:
         price: float,
         risk_distance: float,
         risk_level: str,
+        market_condition: str,
     ) -> RiskResult:
-
-
-        entry = price
 
 
         stop_loss = (
@@ -278,7 +498,18 @@ class RiskEngine:
         )
 
 
-        take_profit = (
+        tp1 = (
+
+            price
+
+            -
+
+            risk_distance
+
+        )
+
+
+        tp2 = (
 
             price
 
@@ -290,7 +521,37 @@ class RiskEngine:
 
                 *
 
-                self.risk_reward_target
+                2
+
+            )
+
+        )
+
+
+        tp3 = (
+
+            price
+
+            -
+
+            (
+
+                risk_distance
+
+                *
+
+                3
+
+            )
+
+        )
+
+
+        position_size, risk_amount = (
+
+            self._calculate_position_size(
+
+                risk_distance
 
             )
 
@@ -300,7 +561,7 @@ class RiskEngine:
         return RiskResult(
 
             entry_price=round(
-                entry,
+                price,
                 5
             ),
 
@@ -312,24 +573,58 @@ class RiskEngine:
 
 
             take_profit=round(
-                take_profit,
+                tp2,
                 5
             ),
 
 
-            risk_reward=self.risk_reward_target,
+            take_profit_1=round(
+                tp1,
+                5
+            ),
+
+
+            take_profit_2=round(
+                tp2,
+                5
+            ),
+
+
+            take_profit_3=round(
+                tp3,
+                5
+            ),
+
+
+            risk_reward=2.0,
+
+
+            position_size=position_size,
+
+
+            risk_amount=risk_amount,
+
+
+            trailing_stop=round(
+                tp1,
+                5
+            ),
 
 
             risk_level=risk_level,
 
 
+            market_condition=market_condition,
+
+
             reason=(
 
-                "Bearish setup risk calculated using ATR and confidence"
+                "Professional bearish risk plan created"
 
             ),
 
         )
+
 
 
 
@@ -346,29 +641,6 @@ class RiskEngine:
         score: float = 0.0,
         risk_distance: float | None = None,
     ) -> RiskResult:
-        """
-        Main risk calculation.
-
-        Parameters:
-
-        signal:
-            BUY / SELL / NONE
-
-        current_price:
-            Current market price
-
-        atr:
-            Average True Range value
-
-        confidence:
-            Analysis confidence
-
-        score:
-            Decision score
-
-        risk_distance:
-            Manual override
-        """
 
 
 
@@ -387,12 +659,7 @@ class RiskEngine:
         )
 
 
-
-        signal = (
-
-            signal.upper()
-
-        )
+        signal = signal.upper()
 
 
 
@@ -403,6 +670,19 @@ class RiskEngine:
                 confidence,
 
                 score,
+
+            )
+
+        )
+
+
+        market_condition = (
+
+            self._market_condition(
+
+                atr,
+
+                current_price,
 
             )
 
@@ -421,6 +701,8 @@ class RiskEngine:
 
                 risk_level=risk_level,
 
+                market_condition=market_condition,
+
             )
 
 
@@ -436,29 +718,42 @@ class RiskEngine:
 
                 risk_level=risk_level,
 
-            )
-
-
-
-        else:
-
-
-            return RiskResult(
-
-                entry_price=None,
-
-                stop_loss=None,
-
-                take_profit=None,
-
-                risk_reward=None,
-
-                risk_level="NONE",
-
-                reason=(
-
-                    "No trade setup available"
-
-                ),
+                market_condition=market_condition,
 
             )
+
+
+
+        return RiskResult(
+
+            entry_price=None,
+
+            stop_loss=None,
+
+            take_profit=None,
+
+            take_profit_1=None,
+
+            take_profit_2=None,
+
+            take_profit_3=None,
+
+            risk_reward=None,
+
+            position_size=None,
+
+            risk_amount=None,
+
+            trailing_stop=None,
+
+            risk_level="NONE",
+
+            market_condition=market_condition,
+
+            reason=(
+
+                "No trade setup available"
+
+            ),
+
+        )
