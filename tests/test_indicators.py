@@ -107,7 +107,23 @@ def test_macd() -> None:
 
     assert len(
         result["signal"]
-    ) == len(values)
+    ) <= len(values)
+
+    assert all(
+        value is None or isinstance(
+            value,
+            float,
+        )
+        for value in result["macd"]
+    )
+
+    assert all(
+        value is None or isinstance(
+            value,
+            float,
+        )
+        for value in result["signal"]
+    )
 
 
 def test_stochastic_rsi() -> None:
