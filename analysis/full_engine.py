@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 
-from analysis.report import AnalysisReport
+from analysis.models import (
+    AnalysisResult,
+    AnalysisReport,
+)
 
 from analysis.candle import Candle
 
