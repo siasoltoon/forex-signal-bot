@@ -6,6 +6,7 @@ from collections.abc import Sequence
 def _validate_period(
     period: int,
 ) -> None:
+
     if not isinstance(
         period,
         int,
@@ -20,9 +21,11 @@ def _validate_period(
         )
 
 
+
 def _validate_values(
     values: Sequence[float],
 ) -> None:
+
     if not isinstance(
         values,
         Sequence,
@@ -35,6 +38,7 @@ def _validate_values(
         raise ValueError(
             "values cannot be empty."
         )
+
 
 
 def rsi(
@@ -55,7 +59,11 @@ def rsi(
     gains: list[float] = []
     losses: list[float] = []
 
-    for index in range(1, len(values)):
+
+    for index in range(
+        1,
+        len(values),
+    ):
 
         change = (
             float(values[index])
@@ -69,10 +77,14 @@ def rsi(
 
         else:
             gains.append(0.0)
-            losses.append(abs(change))
+            losses.append(
+                abs(change)
+            )
+
 
     if len(values) <= period:
         return result
+
 
     avg_gain = (
         sum(gains[:period])
@@ -86,11 +98,15 @@ def rsi(
         period
     )
 
+
     if avg_loss == 0:
+
         result[period] = 100.0
 
     else:
+
         rs = avg_gain / avg_loss
+
         result[period] = (
             100
             -
@@ -101,6 +117,7 @@ def rsi(
             )
         )
 
+
     for index in range(
         period + 1,
         len(values),
@@ -108,6 +125,7 @@ def rsi(
 
         gain = gains[index - 1]
         loss = losses[index - 1]
+
 
         avg_gain = (
             (
@@ -119,6 +137,7 @@ def rsi(
             gain
         ) / period
 
+
         avg_loss = (
             (
                 avg_loss
@@ -129,10 +148,13 @@ def rsi(
             loss
         ) / period
 
+
         if avg_loss == 0:
+
             result[index] = 100.0
 
         else:
+
             rs = avg_gain / avg_loss
 
             result[index] = (
@@ -145,7 +167,11 @@ def rsi(
                 )
             )
 
+
     return result
+
+
+
 
 
 def macd(
@@ -158,42 +184,60 @@ def macd(
     Moving Average Convergence Divergence.
     """
 
+
     from analysis.indicators.moving_average import ema
+
 
     _validate_values(values)
 
+    _validate_period(fast)
+    _validate_period(slow)
+    _validate_period(signal)
+
+
     if fast >= slow:
+
         raise ValueError(
             "fast period must be smaller than slow period."
         )
+
 
     fast_line = ema(
         values,
         fast,
     )
 
+
     slow_line = ema(
         values,
         slow,
     )
 
+
     macd_line: list[float | None] = []
+
 
     for fast_value, slow_value in zip(
         fast_line,
         slow_line,
     ):
+
         if (
             fast_value is None
             or
             slow_value is None
         ):
+
             macd_line.append(None)
 
+
         else:
+
             macd_line.append(
                 fast_value - slow_value
             )
+
+
 
     valid_macd = [
         value
@@ -201,15 +245,57 @@ def macd(
         if value is not None
     ]
 
-    signal_line = ema(
-        valid_macd,
-        signal,
-    )
+
+
+    # Fix for insufficient data
+
+    if len(valid_macd) < signal:
+
+        signal_line = [
+            None
+        ] * len(macd_line)
+
+
+    else:
+
+        calculated_signal = ema(
+            valid_macd,
+            signal,
+        )
+
+
+        signal_line = []
+
+        valid_index = 0
+
+
+        for value in macd_line:
+
+            if value is None:
+
+                signal_line.append(None)
+
+            else:
+
+                signal_line.append(
+                    calculated_signal[
+                        valid_index
+                    ]
+                )
+
+                valid_index += 1
+
+
 
     return {
         "macd": macd_line,
         "signal": signal_line,
     }
+
+
+
+
+
 
 
 def stochastic_rsi(
@@ -221,29 +307,45 @@ def stochastic_rsi(
     Stochastic RSI.
     """
 
-    _validate_period(rsi_period)
-    _validate_period(stoch_period)
+
+    _validate_period(
+        rsi_period
+    )
+
+    _validate_period(
+        stoch_period
+    )
+
     _validate_values(values)
+
+
 
     rsi_values = rsi(
         values,
         rsi_period,
     )
 
+
     result: list[float | None] = [
         None
     ] * len(values)
 
+
+
     for index in range(
         len(values)
     ):
+
 
         if index < (
             rsi_period
             +
             stoch_period
         ):
+
             continue
+
+
 
         window = [
             value
@@ -251,31 +353,46 @@ def stochastic_rsi(
                 index - stoch_period + 1:
                 index + 1
             ]
+
             if value is not None
         ]
 
+
+
         if len(window) != stoch_period:
+
             continue
 
+
+
+        current_rsi = rsi_values[index]
+
+
+        if current_rsi is None:
+
+            continue
+
+
+
         minimum = min(window)
+
         maximum = max(window)
 
+
+
         if maximum == minimum:
+
             result[index] = 0.0
 
+
         else:
+
             result[index] = (
-                (
-                    rsi_values[index]
-                    -
-                    minimum
-                )
-                /
-                (
-                    maximum
-                    -
-                    minimum
-                )
+                current_rsi - minimum
+            ) / (
+                maximum - minimum
             )
+
+
 
     return result
