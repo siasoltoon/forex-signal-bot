@@ -14,6 +14,15 @@ from analysis.models import (
     AnalysisResult,
 )
 
+from analysis.indicator_engine import (
+    IndicatorEngine,
+)
+
+from analysis.momentum_engine import (
+    MomentumEngine,
+)
+
+
 
 class FullAnalysisEngine:
     """
@@ -22,6 +31,7 @@ class FullAnalysisEngine:
     Combines:
     - Indicators
     - Market structure
+    - Momentum analysis
     - Scoring
     """
 
@@ -30,6 +40,14 @@ class FullAnalysisEngine:
 
         self.structure_detector = (
             MarketStructureDetector()
+        )
+
+        self.indicator_engine = (
+            IndicatorEngine()
+        )
+
+        self.momentum_engine = (
+            MomentumEngine()
         )
 
         self.scorer = AnalysisScorer()
@@ -41,6 +59,9 @@ class FullAnalysisEngine:
         closes: list[float],
     ) -> AnalysisReport:
 
+
+        # Market structure
+
         structure = (
             self.structure_detector.analyze(
                 closes
@@ -48,13 +69,38 @@ class FullAnalysisEngine:
         )
 
 
+        # Indicators
+
+        indicator_snapshot = (
+            self.indicator_engine.calculate(
+                closes
+            )
+        )
+
+
+        # Momentum
+
+        momentum_result = (
+            self.momentum_engine.analyze(
+                indicator_snapshot.values
+            )
+        )
+
+
+        # Final analysis object
+
         analysis_result = AnalysisResult(
             trend=structure.trend,
-            momentum="neutral",
-            indicators={},
+
+            momentum=momentum_result.state,
+
+            indicators=indicator_snapshot.values,
+
             supply_demand=None,
         )
 
+
+        # Score
 
         score = (
             self.scorer.score(
@@ -72,8 +118,12 @@ class FullAnalysisEngine:
 
         return AnalysisReport(
             trend=structure.trend,
+
             structure=structure_name,
+
             score=score.score,
+
             signal=score.direction,
+
             confidence=score.confidence,
         )
