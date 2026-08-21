@@ -84,6 +84,7 @@ class AnalysisReport:
 
 
 
+
     # ==================================================
     # Decision Layer
     # ==================================================
@@ -92,6 +93,7 @@ class AnalysisReport:
 
 
     risk_level: str = "normal"
+
 
 
 
@@ -123,13 +125,28 @@ class AnalysisReport:
     position_size: float | None = None
 
 
+    lot_size: float | None = None
+
+
     risk_amount: float | None = None
+
+
+    risk_percent: float | None = None
 
 
     trailing_stop: float | None = None
 
 
     market_condition: str = "UNKNOWN"
+
+
+
+    # Trade Quality
+
+    trade_quality: float | None = None
+
+
+    trade_grade: str = "UNKNOWN"
 
 
 
@@ -187,7 +204,7 @@ class AnalysisReport:
 
     
     # ==================================================
-    # Helper Methods
+    # Confidence Helpers
     # ==================================================
 
     def confidence_percentage(
@@ -248,6 +265,10 @@ class AnalysisReport:
 
 
 
+    # ==================================================
+    # Voting Summary
+    # ==================================================
+
     def vote_summary(
         self,
     ) -> dict[str, int]:
@@ -268,6 +289,10 @@ class AnalysisReport:
 
 
 
+
+    # ==================================================
+    # Signal Quality
+    # ==================================================
 
     def is_strong_signal(
         self,
@@ -290,30 +315,46 @@ class AnalysisReport:
 
 
 
-    def has_risk_setup(
+    def is_high_quality_trade(
         self,
     ) -> bool:
         """
-        Checks if trade management exists.
+        Checks if trade quality is acceptable.
+
+        Used by:
+
+        - Trade Manager
+        - Auto Execution
+        - Filtering Layer
         """
 
 
         return (
 
-            self.entry_price is not None
+            self.trade_quality is not None
 
             and
 
-            self.stop_loss is not None
+            self.trade_quality >= 80
 
             and
 
-            self.take_profit is not None
+            self.trade_grade in (
+
+                "A",
+
+                "A+",
+
+            )
 
         )
 
 
 
+
+    # ==================================================
+    # Risk Summary
+    # ==================================================
 
     def risk_summary(
         self,
@@ -327,30 +368,56 @@ class AnalysisReport:
 
             "entry": self.entry_price,
 
+
             "stop_loss": self.stop_loss,
+
 
             "take_profit": self.take_profit,
 
+
             "take_profit_1": self.take_profit_1,
+
 
             "take_profit_2": self.take_profit_2,
 
+
             "take_profit_3": self.take_profit_3,
+
 
             "risk_reward": self.risk_reward,
 
+
             "position_size": self.position_size,
+
+
+            "lot_size": self.lot_size,
+
 
             "risk_amount": self.risk_amount,
 
+
+            "risk_percent": self.risk_percent,
+
+
             "trailing_stop": self.trailing_stop,
 
+
             "market_condition": self.market_condition,
+
+
+            "trade_quality": self.trade_quality,
+
+
+            "trade_grade": self.trade_grade,
 
         }
 
 
 
+
+    # ==================================================
+    # Compact Output
+    # ==================================================
 
     def summary(
         self,
@@ -361,6 +428,7 @@ class AnalysisReport:
         - Telegram
         - API
         - AI layer
+        - Dashboard
         """
 
 
@@ -419,6 +487,21 @@ class AnalysisReport:
                 "fair_value_gap": self.fair_value_gap,
 
                 "premium_discount": self.premium_discount,
+
+            },
+
+
+            "trade": {
+
+                "quality": self.trade_quality,
+
+                "grade": self.trade_grade,
+
+                "is_high_quality": (
+
+                    self.is_high_quality_trade()
+
+                ),
 
             },
 
