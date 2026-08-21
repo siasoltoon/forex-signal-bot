@@ -12,6 +12,14 @@ from analysis.scoring import (
     AnalysisScorer,
 )
 
+from analysis.report import (
+    AnalysisReport,
+)
+
+from analysis.full_engine import (
+    FullAnalysisEngine,
+)
+
 
 __all__ = [
     "AnalysisEngine",
@@ -19,4 +27,6 @@ __all__ = [
     "AnalysisScore",
     "SignalComponent",
     "AnalysisScorer",
+    "AnalysisReport",
+    "FullAnalysisEngine",
 ]
