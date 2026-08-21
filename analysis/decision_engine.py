@@ -14,7 +14,7 @@ from typing import Any
 )
 class DecisionResult:
     """
-    Final trading decision.
+    Final trading decision result.
     """
 
     signal: str
@@ -38,7 +38,7 @@ class DecisionResult:
 class DecisionEngine:
     """
     Combines all analysis modules
-    and creates final decision.
+    and creates final trading decision.
     """
 
 
@@ -73,13 +73,47 @@ class DecisionEngine:
 
         self.weights = (
 
-            weights
+            weights.copy()
 
             if weights
 
             else self.WEIGHTS.copy()
 
         )
+
+
+
+    # ==================================================
+    # Helpers
+    # ==================================================
+
+    @staticmethod
+    def normalize_component(
+        value: float
+    ) -> float:
+        """
+        Convert any score into 0-100 range.
+        """
+
+        if value is None:
+
+            return 0.0
+
+
+        value = float(value)
+
+
+        if value < 0:
+
+            value = 0
+
+
+        if value > 100:
+
+            value = 100
+
+
+        return value
 
 
 
@@ -95,18 +129,23 @@ class DecisionEngine:
 
         score = 0.0
 
-        reasons = []
+
+        reasons: list[str] = []
 
 
 
-        # -------------------------
-        # Smart Money
-        # -------------------------
+        # ==================================================
+        # Smart Money Concepts
+        # ==================================================
 
-        smc_score = getattr(
-            analysis,
-            "smart_money_score",
-            0.0
+        smc_score = self.normalize_component(
+
+            getattr(
+                analysis,
+                "smart_money_score",
+                0.0
+            )
+
         )
 
 
@@ -123,36 +162,50 @@ class DecisionEngine:
 
 
         smc_bias = getattr(
+
             analysis,
+
             "smc_bias",
+
             "neutral"
+
         )
 
 
 
-        if smc_bias.lower() == "bullish":
+        if isinstance(
+            smc_bias,
+            str
+        ):
 
-            reasons.append(
-                "Smart Money bullish bias"
+
+            if smc_bias.lower() == "bullish":
+
+                reasons.append(
+                    "Smart Money bullish bias"
+                )
+
+
+            elif smc_bias.lower() == "bearish":
+
+                reasons.append(
+                    "Smart Money bearish bias"
+                )
+
+
+
+        # ==================================================
+        # Market Structure
+        # ==================================================
+
+        structure_score = self.normalize_component(
+
+            getattr(
+                analysis,
+                "structure_score",
+                0.0
             )
 
-
-        elif smc_bias.lower() == "bearish":
-
-            reasons.append(
-                "Smart Money bearish bias"
-            )
-
-
-
-        # -------------------------
-        # Structure
-        # -------------------------
-
-        structure_score = getattr(
-            analysis,
-            "structure_score",
-            0.0
         )
 
 
@@ -167,22 +220,29 @@ class DecisionEngine:
         )
 
 
+
         if structure_score > 0:
 
             reasons.append(
+
                 "Market structure confirmation"
+
             )
 
 
 
-        # -------------------------
+        # ==================================================
         # Price Action
-        # -------------------------
+        # ==================================================
 
-        price_action_score = getattr(
-            analysis,
-            "price_action_score",
-            0.0
+        price_action_score = self.normalize_component(
+
+            getattr(
+                analysis,
+                "price_action_score",
+                0.0
+            )
+
         )
 
 
@@ -197,25 +257,35 @@ class DecisionEngine:
         )
 
 
+
         if price_action_score > 0:
 
             reasons.append(
+
                 "Price action confirmation"
+
             )
 
+        
 
-
-        # -------------------------
+        # ==================================================
         # Supply Demand
-        # -------------------------
+        # ==================================================
 
-        score += (
+        supply_score = self.normalize_component(
 
             getattr(
                 analysis,
                 "trend_score",
                 0.0
             )
+
+        )
+
+
+        score += (
+
+            supply_score
 
             *
 
@@ -225,17 +295,34 @@ class DecisionEngine:
 
 
 
-        # -------------------------
-        # Indicators
-        # -------------------------
+        if supply_score > 0:
 
-        score += (
+            reasons.append(
+
+                "Supply Demand confirmation"
+
+            )
+
+
+
+        # ==================================================
+        # Indicators / Momentum
+        # ==================================================
+
+        indicator_score = self.normalize_component(
 
             getattr(
                 analysis,
                 "momentum_score",
                 0.0
             )
+
+        )
+
+
+        score += (
+
+            indicator_score
 
             *
 
@@ -244,18 +331,58 @@ class DecisionEngine:
         )
 
 
-        
-        # -------------------------
-        # Pattern Engines
-        # -------------------------
 
-        score += (
+        if indicator_score > 0:
+
+            reasons.append(
+
+                "Momentum confirmation"
+
+            )
+
+
+
+        # ==================================================
+        # Pattern Engines
+        # ==================================================
+
+        elliott_score = self.normalize_component(
 
             getattr(
                 analysis,
                 "elliott_score",
                 0.0
             )
+
+        )
+
+
+        harmonic_score = self.normalize_component(
+
+            getattr(
+                analysis,
+                "harmonic_score",
+                0.0
+            )
+
+        )
+
+
+        wyckoff_score = self.normalize_component(
+
+            getattr(
+                analysis,
+                "wyckoff_score",
+                0.0
+            )
+
+        )
+
+
+
+        score += (
+
+            elliott_score
 
             *
 
@@ -266,11 +393,7 @@ class DecisionEngine:
 
         score += (
 
-            getattr(
-                analysis,
-                "harmonic_score",
-                0.0
-            )
+            harmonic_score
 
             *
 
@@ -281,11 +404,7 @@ class DecisionEngine:
 
         score += (
 
-            getattr(
-                analysis,
-                "wyckoff_score",
-                0.0
-            )
+            wyckoff_score
 
             *
 
@@ -296,15 +415,21 @@ class DecisionEngine:
 
 
         # ==================================================
-        # Normalize Score
+        # Final Score
         # ==================================================
 
         score = max(
-            0,
+
+            0.0,
+
             min(
-                100,
+
+                100.0,
+
                 score
+
             )
+
         )
 
 
@@ -354,17 +479,25 @@ class DecisionEngine:
         # ==================================================
 
         confidence = abs(
+
             score - 50
+
         ) / 50
 
 
 
         confidence = max(
-            0,
+
+            0.0,
+
             min(
-                1,
+
+                1.0,
+
                 confidence
+
             )
+
         )
 
 
@@ -373,18 +506,24 @@ class DecisionEngine:
         # Bias
         # ==================================================
 
-        if score >= 50:
+        if score > 50:
 
             bias = "bullish"
 
-        else:
+
+        elif score < 50:
 
             bias = "bearish"
 
 
+        else:
+
+            bias = "neutral"
+
+
 
         # ==================================================
-        # Extra Reason
+        # Final Reasons
         # ==================================================
 
         reasons.append(
@@ -406,24 +545,25 @@ class DecisionEngine:
 
             signal=signal,
 
-
             strength=strength,
 
-
             score=round(
-                score,
-                2
-            ),
 
+                score,
+
+                2
+
+            ),
 
             confidence=round(
+
                 confidence,
+
                 3
+
             ),
 
-
             bias=bias,
-
 
             reasons=reasons,
 
