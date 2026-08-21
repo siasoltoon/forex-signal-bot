@@ -60,38 +60,14 @@ class AnalysisScore:
 )
 class AnalysisResult:
     """
-    Complete technical analysis state.
-
-    Includes:
-
-    - Market Structure
-    - Indicators
-    - Momentum
-    - Price Action
-    - Supply / Demand
-    - Candlestick
-    - Elliott Wave
-    - Harmonic Patterns
-    - Al Brooks Price Action
-    - Wyckoff
-    - Smart Money Concepts
-    - AI Expansion
+    Internal full analysis state.
     """
-
-
-
-    # =====================
-    # Core Analysis
-    # =====================
 
     trend: str
 
-
     momentum: str
 
-
     indicators: dict[str, Any]
-
 
 
     candles: list[Candle] = field(
@@ -100,74 +76,81 @@ class AnalysisResult:
 
 
 
-    # =====================
-    # Supply / Demand
-    # =====================
+    # =========================
+    # Supply Demand
+    # =========================
 
     supply_demand: Any = None
 
 
 
-    # =====================
-    # Main Scores
-    # =====================
+    # =========================
+    # Core Scores
+    # =========================
 
     trend_score: float = 0.0
 
-
     momentum_score: float = 0.0
-
 
     structure_score: float = 0.0
 
-
     volatility_score: float = 0.0
-
 
     price_action_score: float = 0.0
 
 
 
-    # =====================
-    # Pattern Engines
-    # =====================
+    # =========================
+    # Pattern Scores
+    # =========================
 
     candlestick_score: float = 0.0
 
-
     elliott_score: float = 0.0
-
 
     harmonic_score: float = 0.0
 
-
     brooks_score: float = 0.0
-
 
     wyckoff_score: float = 0.0
 
 
-    smc_score: float = 0.0
 
-
-
-    # =====================
-    # Future Expansion
-    # =====================
-
-    ai_score: float = 0.0
-
+    # =========================
+    # Smart Money
+    # =========================
 
     smart_money_score: float = 0.0
-
 
     liquidity_score: float = 0.0
 
 
 
-    # =====================
-    # Explanation Layer
-    # =====================
+    smc_bias: str = "neutral"
+
+    smc_structure: str = "none"
+
+    order_block: str = "none"
+
+    liquidity: str = "none"
+
+    fair_value_gap: bool = False
+
+    premium_discount: str = "neutral"
+
+
+
+    # =========================
+    # AI Expansion
+    # =========================
+
+    ai_score: float = 0.0
+
+
+
+    # =========================
+    # Explanation
+    # =========================
 
     reasons: list[str] = field(
         default_factory=list
@@ -185,35 +168,41 @@ class AnalysisResult:
 class AnalysisReport:
     """
     Final user-facing analysis report.
-
-    Contains:
-
-    - Trend
-    - Structure
-    - Score
-    - Signal
-    - Confidence
-    - Reasons
-    - Indicators
     """
-
-
 
     trend: str
 
-
     structure: str
-
 
     score: float
 
-
     signal: str
-
 
     confidence: float
 
 
+
+    # =========================
+    # Smart Money Output
+    # =========================
+
+    smc_bias: str = "neutral"
+
+    smc_structure: str = "none"
+
+    order_block: str = "none"
+
+    liquidity: str = "none"
+
+    fair_value_gap: bool = False
+
+    premium_discount: str = "neutral"
+
+
+
+    # =========================
+    # Explanation
+    # =========================
 
     reasons: list[str] = field(
         default_factory=list
