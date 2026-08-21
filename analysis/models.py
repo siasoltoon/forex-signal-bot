@@ -82,9 +82,57 @@ class AnalysisCandle:
 @dataclass(
     frozen=True
 )
+class SignalComponent:
+    """
+    Single analysis signal component.
+
+    Used by scoring engine to combine
+    different analysis modules.
+    """
+
+    name: str
+
+    direction: str
+
+    weight: float
+
+    confidence: float
+
+
+    def __post_init__(self) -> None:
+
+        if not self.name:
+            raise ValueError(
+                "name cannot be empty."
+            )
+
+        if self.direction not in (
+            "bullish",
+            "bearish",
+            "neutral",
+        ):
+            raise ValueError(
+                "invalid direction."
+            )
+
+        if self.weight < 0:
+            raise ValueError(
+                "weight cannot be negative."
+            )
+
+        if not 0 <= self.confidence <= 1:
+            raise ValueError(
+                "confidence must be between 0 and 1."
+            )
+
+
+
+@dataclass(
+    frozen=True
+)
 class AnalysisScore:
     """
-    Normalized analysis scoring model.
+    Combined analysis score.
     """
 
     bullish: float = 0.0
@@ -98,12 +146,12 @@ class AnalysisScore:
 
         if self.bullish < 0:
             raise ValueError(
-                "bullish score cannot be negative."
+                "bullish cannot be negative."
             )
 
         if self.bearish < 0:
             raise ValueError(
-                "bearish score cannot be negative."
+                "bearish cannot be negative."
             )
 
         if not 0 <= self.confidence <= 1:
@@ -130,7 +178,7 @@ class AnalysisScore:
 )
 class PriceData:
     """
-    Generic price container.
+    Generic price data.
     """
 
     close: float
