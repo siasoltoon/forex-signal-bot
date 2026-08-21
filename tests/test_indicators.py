@@ -2,60 +2,73 @@ from __future__ import annotations
 
 import pytest
 
-from analysis.indicators.base import Indicator
+from analysis.indicators import (
+    ema,
+    sma,
+)
 
 
-class DummyIndicator(Indicator):
-    """
-    Fake indicator for testing base behavior.
-    """
+def test_sma() -> None:
 
-    name = "dummy"
+    values = [
+        1,
+        2,
+        3,
+        4,
+        5,
+    ]
 
-    def calculate(
-        self,
-        values: list[float],
-    ) -> list[float]:
-
-        return values
-
-
-def test_indicator_name() -> None:
-    indicator = DummyIndicator()
-
-    assert indicator.name == "dummy"
-
-
-def test_indicator_calculate() -> None:
-    indicator = DummyIndicator()
-
-    result = indicator.calculate(
-        [
-            1.0,
-            2.0,
-            3.0,
-        ]
+    result = sma(
+        values,
+        period=3,
     )
 
     assert result == [
-        1.0,
+        None,
+        None,
         2.0,
         3.0,
+        4.0,
     ]
 
 
-def test_indicator_empty_values() -> None:
-    indicator = DummyIndicator()
+def test_ema_length() -> None:
 
-    result = indicator.calculate(
-        []
+    values = [
+        1,
+        2,
+        3,
+        4,
+        5,
+    ]
+
+    result = ema(
+        values,
+        period=3,
     )
 
-    assert result == []
+    assert len(result) == 5
 
 
-def test_indicator_requires_implementation() -> None:
+def test_invalid_period() -> None:
+
     with pytest.raises(
-        TypeError
+        ValueError,
+        match="period must be greater than zero",
     ):
-        Indicator()
+        sma(
+            [1, 2, 3],
+            0,
+        )
+
+
+def test_empty_values() -> None:
+
+    with pytest.raises(
+        ValueError,
+        match="values cannot be empty",
+    ):
+        sma(
+            [],
+            3,
+        )
