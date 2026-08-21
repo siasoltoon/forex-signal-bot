@@ -22,18 +22,14 @@ class SupplyDemandDetector:
         self,
         candles: list[dict[str, float]],
     ) -> SupplyDemandResult:
-        """
-        Analyze candles and find zones.
-        """
 
         self._validate_candles(
             candles
         )
 
+        supply_zones: list[PriceZone] = []
 
-        supply_zones = []
-
-        demand_zones = []
+        demand_zones: list[PriceZone] = []
 
 
         for index in range(
@@ -42,18 +38,19 @@ class SupplyDemandDetector:
         ):
 
             previous = candles[index - 1]
-
             current = candles[index]
-
             next_candle = candles[index + 1]
 
 
+            # -------------------------
+            # Supply
             # Rally -> Drop
+            # -------------------------
+
             if (
-                current["high"] > previous["high"]
-                and next_candle["close"]
-                <
-                current["open"]
+                previous["close"] < current["close"]
+                and
+                next_candle["close"] < current["close"]
             ):
 
                 supply_zones.append(
@@ -68,12 +65,15 @@ class SupplyDemandDetector:
                 )
 
 
+            # -------------------------
+            # Demand
             # Drop -> Rally
+            # -------------------------
+
             if (
-                current["low"] < previous["low"]
-                and next_candle["close"]
-                >
-                current["open"]
+                previous["close"] > current["close"]
+                and
+                next_candle["close"] > current["close"]
             ):
 
                 demand_zones.append(
@@ -115,15 +115,15 @@ class SupplyDemandDetector:
             )
 
 
+        required = {
+            "open",
+            "high",
+            "low",
+            "close",
+        }
+
+
         for candle in candles:
-
-            required = {
-                "open",
-                "high",
-                "low",
-                "close",
-            }
-
 
             if not required.issubset(
                 candle.keys()
