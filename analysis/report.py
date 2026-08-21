@@ -17,14 +17,15 @@ class AnalysisReport:
     Final user-facing analysis report.
 
     Contains:
+
     - Trend
-    - Market structure
-    - Final score
+    - Structure
+    - Score
     - Signal
     - Confidence
-    - Smart Money Concepts
     - Reasons
     - Indicators
+    - Risk Plan
     """
 
 
@@ -35,45 +36,18 @@ class AnalysisReport:
 
     trend: str
 
-
     structure: str
-
 
     score: float
 
-
     signal: str
-
 
     confidence: float
 
 
 
     # =========================
-    # Smart Money Concepts
-    # =========================
-
-    smc_bias: str = "neutral"
-
-
-    smc_structure: str = "none"
-
-
-    order_block: str = "none"
-
-
-    liquidity: str = "none"
-
-
-    fair_value_gap: bool = False
-
-
-    premium_discount: str = "none"
-
-
-
-    # =========================
-    # Explanation Layer
+    # Explanation
     # =========================
 
     reasons: list[str] = field(
@@ -83,9 +57,17 @@ class AnalysisReport:
 
 
     # =========================
-    # Indicator Snapshot
+    # Indicators
     # =========================
 
     indicators: dict[str, Any] = field(
         default_factory=dict
     )
+
+
+
+    # =========================
+    # Risk Management
+    # =========================
+
+    risk: Any = None
