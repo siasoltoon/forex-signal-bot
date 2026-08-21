@@ -52,16 +52,14 @@ class FullAnalysisEngine:
     """
     Complete analysis pipeline.
 
-    Supports:
+    Engines:
 
-    - OHLC Candles
-    - Legacy close prices
     - Market Structure
     - Indicators
     - Momentum
     - Price Action
-    - Supply / Demand
-    - Candlestick Patterns
+    - Supply Demand
+    - Candlestick
     - Scoring
     """
 
@@ -128,35 +126,45 @@ class FullAnalysisEngine:
             Candle
         ):
 
+
             candle_data = candles
 
 
-
             closes = [
-                candle.close
-                for candle in candle_data
-            ]
 
+                candle.close
+
+                for candle in candle_data
+
+            ]
 
 
         else:
 
 
             closes = [
-                float(price)
-                for price in candles
-            ]
 
+                float(price)
+
+                for price in candles
+
+            ]
 
 
             candle_data = [
 
                 Candle(
+
                     open=price,
+
                     high=price,
+
                     low=price,
+
                     close=price,
+
                     volume=0.0,
+
                 )
 
                 for price in closes
@@ -252,9 +260,6 @@ class FullAnalysisEngine:
             indicators=indicator_snapshot.values,
 
 
-            candles=candle_data,
-
-
             supply_demand=(
                 supply_demand_result.zone
             ),
@@ -265,7 +270,9 @@ class FullAnalysisEngine:
 
 
             momentum_score=(
+
                 momentum_result.score
+
             ),
 
 
@@ -313,6 +320,7 @@ class FullAnalysisEngine:
                 +
 
                 [
+
                     supply_demand_result.reason,
 
                     candlestick_result.reason,
