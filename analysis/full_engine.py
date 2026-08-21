@@ -26,6 +26,11 @@ from analysis.decision_engine import (
 )
 
 
+from analysis.confidence_engine import (
+    ConfidenceEngine,
+)
+
+
 from analysis.indicator_engine import (
     IndicatorEngine,
 )
@@ -95,6 +100,7 @@ class FullAnalysisEngine:
     - Wyckoff
     - Smart Money Concepts
     - Decision Engine
+    - Confidence Engine
     """
 
 
@@ -157,8 +163,19 @@ class FullAnalysisEngine:
         )
 
 
+
+        # Decision Layer
+
         self.decision_engine = (
             DecisionEngine()
+        )
+
+
+
+        # Confidence Layer
+
+        self.confidence_engine = (
+            ConfidenceEngine()
         )
 
 
@@ -320,14 +337,13 @@ class FullAnalysisEngine:
         )
 
 
-        
+
         # =========================
         # Build Analysis Result
         # =========================
 
 
         analysis_result = AnalysisResult(
-
 
             trend=structure.trend,
 
@@ -342,11 +358,8 @@ class FullAnalysisEngine:
 
 
             supply_demand=(
-
                 supply_demand_result.zone
-
             ),
-
 
 
             trend_score=(
@@ -355,26 +368,18 @@ class FullAnalysisEngine:
 
                 if structure.trend == "bullish"
 
-                else
-
-                -20
+                else -20
 
                 if structure.trend == "bearish"
 
-                else
-
-                0
+                else 0
 
             ),
-
 
 
             momentum_score=(
-
                 momentum_result.score
-
             ),
-
 
 
             structure_score=(
@@ -383,161 +388,97 @@ class FullAnalysisEngine:
 
                 if structure.bos
 
-                else
-
-                0
+                else 0
 
             ),
-
 
 
             volatility_score=0.0,
 
 
-
             price_action_score=(
-
                 price_action_result.score
-
             ),
-
 
 
             candlestick_score=(
-
                 candlestick_result.score
-
             ),
-
 
 
             elliott_score=(
-
                 elliott_result.score
-
             ),
-
 
 
             harmonic_score=(
-
                 harmonic_result.score
-
             ),
-
 
 
             brooks_score=(
-
                 brooks_result.score
-
             ),
-
 
 
             wyckoff_score=(
-
                 wyckoff_result.score
-
             ),
-
 
 
             smart_money_score=(
-
                 smc_result.score
-
             ),
-
 
 
             smc_bias=(
-
                 smc_result.bias
-
             ),
-
 
 
             smc_structure=(
-
                 smc_result.structure
-
             ),
-
 
 
             order_block=(
-
                 smc_result.order_block
-
             ),
-
 
 
             liquidity=(
-
                 smc_result.liquidity
-
             ),
-
 
 
             fair_value_gap=(
-
                 smc_result.fair_value_gap
-
             ),
-
 
 
             premium_discount=(
-
                 smc_result.premium_discount
-
             ),
-
 
 
             reasons=(
 
-
                 momentum_result.reasons
 
-
                 +
-
 
                 price_action_result.reasons
 
-
                 +
 
-
                 [
-
-
                     supply_demand_result.reason,
-
-
                     candlestick_result.reason,
-
-
                     elliott_result.reason,
-
-
                     harmonic_result.reason,
-
-
                     brooks_result.reason,
-
-
                     wyckoff_result.reason,
-
-
                     smc_result.reason,
-
-
                 ]
 
             ),
@@ -545,7 +486,7 @@ class FullAnalysisEngine:
         )
 
 
-
+        
         # =========================
         # Decision Layer
         # =========================
@@ -554,6 +495,23 @@ class FullAnalysisEngine:
         decision = (
 
             self.decision_engine.decide(
+
+                analysis_result
+
+            )
+
+        )
+
+
+
+        # =========================
+        # Confidence Layer
+        # =========================
+
+
+        confidence_result = (
+
+            self.confidence_engine.evaluate(
 
                 analysis_result
 
@@ -597,7 +555,7 @@ class FullAnalysisEngine:
             signal=decision.signal,
 
 
-            confidence=decision.confidence,
+            confidence=confidence_result.confidence,
 
 
 
@@ -659,6 +617,13 @@ class FullAnalysisEngine:
 
 
                 decision.reasons
+
+
+                +
+
+
+                confidence_result.warnings
+
 
             ),
 
