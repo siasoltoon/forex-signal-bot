@@ -86,7 +86,7 @@ class FullAnalysisEngine:
     """
     Complete analysis pipeline.
 
-    Modules:
+    Includes:
 
     - Market Structure
     - Indicators
@@ -94,13 +94,13 @@ class FullAnalysisEngine:
     - Price Action
     - Supply Demand
     - Candlestick
-    - Elliott Wave
+    - Elliott
     - Harmonic
-    - Al Brooks
+    - Brooks
     - Wyckoff
-    - Smart Money Concepts
-    - Decision Engine
-    - Confidence Engine
+    - Smart Money
+    - Decision
+    - Confidence
     """
 
 
@@ -163,7 +163,6 @@ class FullAnalysisEngine:
         )
 
 
-
         self.decision_engine = (
             DecisionEngine()
         )
@@ -172,34 +171,6 @@ class FullAnalysisEngine:
         self.confidence_engine = (
             ConfidenceEngine()
         )
-
-
-
-    # ==================================================
-    # Safe Engine Runner
-    # ==================================================
-
-    @staticmethod
-    def _safe_run(
-        engine,
-        method_name: str,
-        data,
-        default=None,
-    ):
-
-        try:
-
-            method = getattr(
-                engine,
-                method_name
-            )
-
-            return method(data)
-
-
-        except Exception:
-
-            return default
 
 
 
@@ -278,9 +249,8 @@ class FullAnalysisEngine:
 
 
         # ==================================================
-        # Core Engines
+        # Run Engines
         # ==================================================
-
 
         structure = (
             self.structure_detector.analyze(
@@ -324,12 +294,6 @@ class FullAnalysisEngine:
         )
 
 
-
-        # ==================================================
-        # Advanced Engines
-        # ==================================================
-
-
         elliott_result = (
             self.elliott_engine.analyze(
                 closes
@@ -371,6 +335,7 @@ class FullAnalysisEngine:
         # ==================================================
 
         analysis_result = AnalysisResult(
+
 
             trend=structure.trend,
 
@@ -602,6 +567,56 @@ class FullAnalysisEngine:
 
 
 
+        # ==================================================
+        # Confidence Grade
+        # ==================================================
+
+        if confidence_result.confidence >= 0.85:
+
+            confidence_grade = "VERY_HIGH"
+
+
+        elif confidence_result.confidence >= 0.70:
+
+            confidence_grade = "HIGH"
+
+
+        elif confidence_result.confidence >= 0.50:
+
+            confidence_grade = "MEDIUM"
+
+
+        elif confidence_result.confidence >= 0.30:
+
+            confidence_grade = "LOW"
+
+
+        else:
+
+            confidence_grade = "VERY_LOW"
+
+
+
+        # ==================================================
+        # Risk Level
+        # ==================================================
+
+        if confidence_result.confidence >= 0.75:
+
+            risk_level = "LOW"
+
+
+        elif confidence_result.confidence >= 0.50:
+
+            risk_level = "MEDIUM"
+
+
+        else:
+
+            risk_level = "HIGH"
+
+
+
         structure_name = (
 
             "BOS"
@@ -639,53 +654,58 @@ class FullAnalysisEngine:
 
 
 
-            smc_bias=(
+            # Confidence
 
-                smc_result.bias
-
-            ),
+            agreement=confidence_result.agreement,
 
 
-
-            smc_structure=(
-
-                smc_result.structure
-
-            ),
+            bullish_votes=confidence_result.bullish_votes,
 
 
+            bearish_votes=confidence_result.bearish_votes,
 
-            order_block=(
 
-                smc_result.order_block
+            neutral_votes=confidence_result.neutral_votes,
 
-            ),
+
+            warnings=confidence_result.warnings,
+
+
+            confidence_grade=confidence_grade,
 
 
 
-            liquidity=(
+            # Decision
 
-                smc_result.liquidity
-
-            ),
+            decision_bias=decision.bias,
 
 
-
-            fair_value_gap=(
-
-                smc_result.fair_value_gap
-
-            ),
+            risk_level=risk_level,
 
 
 
-            premium_discount=(
+            # Smart Money
 
-                smc_result.premium_discount
-
-            ),
+            smc_bias=smc_result.bias,
 
 
+            smc_structure=smc_result.structure,
+
+
+            order_block=smc_result.order_block,
+
+
+            liquidity=smc_result.liquidity,
+
+
+            fair_value_gap=smc_result.fair_value_gap,
+
+
+            premium_discount=smc_result.premium_discount,
+
+
+
+            # Explanation
 
             reasons=(
 
@@ -703,10 +723,6 @@ class FullAnalysisEngine:
 
 
 
-            indicators=(
-
-                indicator_snapshot.values
-
-            ),
+            indicators=indicator_snapshot.values,
 
         )
