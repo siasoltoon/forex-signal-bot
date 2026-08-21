@@ -89,13 +89,11 @@ class AnalysisScorer:
         )
 
 
-
         components.append(
             self._score_candlestick(
                 analysis_result
             )
         )
-
 
 
         components.append(
@@ -105,13 +103,11 @@ class AnalysisScorer:
         )
 
 
-
         components.append(
             self._score_harmonic(
                 analysis_result
             )
         )
-
 
 
         components.append(
@@ -155,27 +151,6 @@ class AnalysisScorer:
 
             components=components,
 
-        )
-
-
-
-    # =========================
-    # Generic Score Helper
-    # =========================
-
-
-    @staticmethod
-    def _custom_score(
-        value: float,
-        name: str,
-        reason: str,
-    ) -> SignalComponent:
-
-
-        return SignalComponent(
-            name=name,
-            score=value,
-            reason=reason,
         )
 
 
@@ -257,7 +232,7 @@ class AnalysisScorer:
 
 
     # =========================
-    # Momentum
+    # Momentum FIXED
     # =========================
 
 
@@ -267,14 +242,44 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
+        momentum_score = getattr(
+            result,
+            "momentum_score",
+            0.0,
+        )
+
+
+        if momentum_score != 0:
+
+            return SignalComponent(
+                name="momentum",
+                score=momentum_score,
+                reason="Momentum engine score.",
+            )
+
+
+        if result.momentum == "oversold":
+
+            return SignalComponent(
+                name="momentum",
+                score=20,
+                reason="Market is oversold.",
+            )
+
+
+        if result.momentum == "overbought":
+
+            return SignalComponent(
+                name="momentum",
+                score=-20,
+                reason="Market is overbought.",
+            )
+
+
         return SignalComponent(
             name="momentum",
-            score=getattr(
-                result,
-                "momentum_score",
-                0.0,
-            ),
-            reason="Momentum engine score.",
+            score=0,
+            reason="Neutral momentum.",
         )
 
 
@@ -313,7 +318,12 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
-        if result.supply_demand == "demand":
+        zone = str(
+            result.supply_demand
+        ).lower()
+
+
+        if zone == "demand":
 
             return SignalComponent(
                 name="supply_demand",
@@ -322,7 +332,7 @@ class AnalysisScorer:
             )
 
 
-        if result.supply_demand == "Supply":
+        if zone == "supply":
 
             return SignalComponent(
                 name="supply_demand",
@@ -432,7 +442,7 @@ class AnalysisScorer:
 
 
     # =========================
-    # Wyckoff Future
+    # Wyckoff
     # =========================
 
 
@@ -470,11 +480,9 @@ class AnalysisScorer:
             return "BUY"
 
 
-
         if score < 0:
 
             return "SELL"
-
 
 
         return "NEUTRAL"
