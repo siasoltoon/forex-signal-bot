@@ -24,6 +24,7 @@ class AnalysisScorer:
     - Candlestick
     - Elliott Wave
     - Harmonic Pattern
+    - Brooks Price Action
     - Wyckoff
     """
 
@@ -116,7 +117,7 @@ class AnalysisScorer:
             )
         )
 
-        
+
         components.append(
             self._score_wyckoff(
                 analysis_result
@@ -239,7 +240,7 @@ class AnalysisScorer:
 
 
     # =========================
-    # Momentum FIXED
+    # Momentum
     # =========================
 
 
@@ -444,6 +445,41 @@ class AnalysisScorer:
                 0.0,
             ),
             reason="Harmonic pattern score.",
+        )
+
+
+
+    # =========================
+    # Brooks Price Action
+    # =========================
+
+
+    @staticmethod
+    def _score_brooks(
+        result: AnalysisResult,
+    ) -> SignalComponent:
+
+
+        brooks_score = getattr(
+            result,
+            "brooks_score",
+            0.0,
+        )
+
+
+        if brooks_score != 0:
+
+            return SignalComponent(
+                name="brooks",
+                score=brooks_score,
+                reason="Al Brooks price action score.",
+            )
+
+
+        return SignalComponent(
+            name="brooks",
+            score=0.0,
+            reason="No Brooks pattern detected.",
         )
 
 
