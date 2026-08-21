@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from analysis.candle import Candle
+
 
 
 @dataclass(
@@ -26,7 +28,8 @@ class CandlestickEngine:
     """
     Detects important candlestick patterns.
 
-    Patterns:
+    Supports:
+
     - Bullish Engulfing
     - Bearish Engulfing
     - Hammer
@@ -38,17 +41,23 @@ class CandlestickEngine:
 
     def analyze(
         self,
-        candles: list[dict[str, float]],
+        candles: list[Candle],
     ) -> CandlestickResult:
+
 
 
         if len(candles) < 2:
 
             return CandlestickResult(
+
                 pattern="none",
+
                 score=0,
+
                 strength=0,
+
                 reason="Not enough candle data.",
+
             )
 
 
@@ -59,16 +68,19 @@ class CandlestickEngine:
 
 
 
-        previous_open = previous["open"]
-        previous_close = previous["close"]
+        previous_open = previous.open
+
+        previous_close = previous.close
 
 
-        current_open = current["open"]
-        current_close = current["close"]
+        current_open = current.open
+
+        current_close = current.close
 
 
-        current_high = current["high"]
-        current_low = current["low"]
+        current_high = current.high
+
+        current_low = current.low
 
 
 
@@ -83,13 +95,18 @@ class CandlestickEngine:
 
 
 
-        if candle_range == 0:
+        if candle_range <= 0:
 
             return CandlestickResult(
+
                 pattern="none",
+
                 score=0,
+
                 strength=0,
-                reason="Invalid candle.",
+
+                reason="Invalid candle range.",
+
             )
 
 
@@ -117,15 +134,15 @@ class CandlestickEngine:
         ):
 
             return CandlestickResult(
+
                 pattern="bullish_engulfing",
 
                 score=15,
 
                 strength=90,
 
-                reason=(
-                    "Bullish engulfing pattern detected."
-                ),
+                reason="Bullish engulfing pattern detected.",
+
             )
 
 
@@ -153,15 +170,15 @@ class CandlestickEngine:
         ):
 
             return CandlestickResult(
+
                 pattern="bearish_engulfing",
 
                 score=-15,
 
                 strength=90,
 
-                reason=(
-                    "Bearish engulfing pattern detected."
-                ),
+                reason="Bearish engulfing pattern detected.",
+
             )
 
 
@@ -171,13 +188,18 @@ class CandlestickEngine:
         # =========================
 
         lower_shadow = (
+
             min(
                 current_open,
                 current_close,
             )
+
             -
+
             current_low
+
         )
+
 
 
         if (
@@ -191,15 +213,15 @@ class CandlestickEngine:
         ):
 
             return CandlestickResult(
+
                 pattern="hammer",
 
                 score=10,
 
                 strength=70,
 
-                reason=(
-                    "Hammer reversal pattern detected."
-                ),
+                reason="Hammer reversal pattern detected.",
+
             )
 
 
@@ -209,13 +231,18 @@ class CandlestickEngine:
         # =========================
 
         upper_shadow = (
+
             current_high
+
             -
+
             max(
                 current_open,
                 current_close,
             )
+
         )
+
 
 
         if (
@@ -229,15 +256,15 @@ class CandlestickEngine:
         ):
 
             return CandlestickResult(
+
                 pattern="shooting_star",
 
                 score=-10,
 
                 strength=70,
 
-                reason=(
-                    "Shooting star reversal pattern detected."
-                ),
+                reason="Shooting star reversal pattern detected.",
+
             )
 
 
@@ -249,27 +276,27 @@ class CandlestickEngine:
         if body <= candle_range * 0.1:
 
             return CandlestickResult(
+
                 pattern="doji",
 
                 score=0,
 
                 strength=50,
 
-                reason=(
-                    "Doji candle shows market indecision."
-                ),
+                reason="Doji candle shows market indecision.",
+
             )
 
 
 
         return CandlestickResult(
+
             pattern="none",
 
             score=0,
 
             strength=0,
 
-            reason=(
-                "No candlestick pattern detected."
-            ),
+            reason="No candlestick pattern detected.",
+
         )
