@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 from analysis.models import (
     SignalComponent,
     AnalysisScore,
@@ -7,29 +8,59 @@ from analysis.models import (
 )
 
 
+
 class AnalysisScorer:
     """
-    Calculate final technical analysis score.
+    Advanced multi-factor scoring engine.
+
+    Factors:
+    - Trend
+    - Market Structure
+    - Momentum
+    - Volatility
+    - Supply/Demand
+    - Price Action
     """
+
+
 
     def score(
         self,
         analysis_result: AnalysisResult,
     ) -> AnalysisScore:
 
+
         components: list[SignalComponent] = []
 
 
-        # Trend score
+
+        # =========================
+        # Trend
+        # =========================
 
         components.append(
             self._score_trend(
-                analysis_result.trend
+                analysis_result
             )
         )
 
 
-        # Momentum score
+
+        # =========================
+        # Market Structure
+        # =========================
+
+        components.append(
+            self._score_structure(
+                analysis_result
+            )
+        )
+
+
+
+        # =========================
+        # Momentum
+        # =========================
 
         components.append(
             self._score_momentum(
@@ -38,21 +69,43 @@ class AnalysisScorer:
         )
 
 
-        # Supply / Demand score
 
-        supply_demand = getattr(
-            analysis_result,
-            "supply_demand",
-            None,
+        # =========================
+        # Volatility
+        # =========================
+
+        components.append(
+            self._score_volatility(
+                analysis_result
+            )
         )
 
-        if supply_demand:
+
+
+        # =========================
+        # Supply / Demand
+        # =========================
+
+        if analysis_result.supply_demand:
 
             components.append(
                 self._score_supply_demand(
-                    supply_demand
+                    analysis_result
                 )
             )
+
+
+
+        # =========================
+        # Price Action
+        # =========================
+
+        components.append(
+            self._score_price_action(
+                analysis_result
+            )
+        )
+
 
 
         total_score = sum(
@@ -61,7 +114,8 @@ class AnalysisScorer:
         )
 
 
-        # Limit score range
+
+        # Limit range
 
         total_score = max(
             -100,
@@ -72,203 +126,263 @@ class AnalysisScorer:
         )
 
 
+
         return AnalysisScore(
+
             score=float(total_score),
 
             direction=self._direction(
                 total_score
             ),
 
-            confidence=abs(
-                total_score
-            ) / 100,
+            confidence=(
+                abs(total_score)
+                /
+                100
+            ),
+
+            components=components,
         )
 
 
 
+    # =========================
+    # Trend
+    # =========================
+
+
     @staticmethod
     def _score_trend(
-        trend: str,
+        result: AnalysisResult,
     ) -> SignalComponent:
 
-        if trend == "bullish":
+
+        if result.trend_score != 0:
+
+            return SignalComponent(
+                name="trend",
+                score=result.trend_score,
+                reason="Trend score from analysis engine.",
+            )
+
+
+
+        if result.trend == "bullish":
 
             return SignalComponent(
                 name="trend",
                 score=30,
-                reason=(
-                    "Bullish trend detected."
-                ),
+                reason="Bullish trend detected.",
             )
 
 
-        if trend == "bearish":
+
+        if result.trend == "bearish":
 
             return SignalComponent(
                 name="trend",
                 score=-30,
-                reason=(
-                    "Bearish trend detected."
-                ),
+                reason="Bearish trend detected.",
             )
+
 
 
         return SignalComponent(
             name="trend",
             score=0,
-            reason=(
-                "No clear trend."
-            ),
+            reason="No clear trend.",
         )
 
+
+
+    # =========================
+    # Structure
+    # =========================
+
+
+    @staticmethod
+    def _score_structure(
+        result: AnalysisResult,
+    ) -> SignalComponent:
+
+
+        if result.structure_score > 0:
+
+            return SignalComponent(
+                name="structure",
+                score=result.structure_score,
+                reason="Bullish market structure.",
+            )
+
+
+
+        if result.structure_score < 0:
+
+            return SignalComponent(
+                name="structure",
+                score=result.structure_score,
+                reason="Bearish market structure.",
+            )
+
+
+
+        return SignalComponent(
+            name="structure",
+            score=0,
+            reason="No structure signal.",
+        )
+
+
+
+    # =========================
+    # Momentum
+    # =========================
 
 
     @staticmethod
     def _score_momentum(
-        analysis_result: AnalysisResult,
+        result: AnalysisResult,
     ) -> SignalComponent:
 
-        """
-        Supports:
-        - New MomentumEngine output
-        - Old test compatibility
-        """
 
-
-        momentum_score = getattr(
-            analysis_result,
-            "momentum_score",
-            0,
-        )
-
-
-        momentum_reasons = getattr(
-            analysis_result,
-            "momentum_reasons",
-            None,
-        )
-
-
-        # Advanced momentum engine
-
-        if momentum_score != 0:
+        if result.momentum_score != 0:
 
             return SignalComponent(
                 name="momentum",
-
-                score=float(
-                    momentum_score
-                ),
-
-                reason=(
-                    ", ".join(
-                        momentum_reasons
-                    )
-                    if momentum_reasons
-                    else
-                    "Momentum engine signal."
-                ),
+                score=result.momentum_score,
+                reason="Momentum engine score.",
             )
 
 
 
-        # Legacy momentum support
-
-        momentum = (
-            analysis_result.momentum
-        )
-
-
-        if momentum == "bullish":
+        if result.momentum == "oversold":
 
             return SignalComponent(
                 name="momentum",
                 score=20,
-                reason=(
-                    "Momentum is bullish."
-                ),
+                reason="Market oversold.",
             )
 
 
-        if momentum == "bearish":
+
+        if result.momentum == "overbought":
 
             return SignalComponent(
                 name="momentum",
                 score=-20,
-                reason=(
-                    "Momentum is bearish."
-                ),
+                reason="Market overbought.",
             )
 
-
-        if momentum == "oversold":
-
-            return SignalComponent(
-                name="momentum",
-                score=20,
-                reason=(
-                    "Market is oversold."
-                ),
-            )
-
-
-        if momentum == "overbought":
-
-            return SignalComponent(
-                name="momentum",
-                score=-20,
-                reason=(
-                    "Market is overbought."
-                ),
-            )
 
 
         return SignalComponent(
             name="momentum",
             score=0,
-            reason=(
-                "Neutral momentum."
-            ),
+            reason="Neutral momentum.",
         )
 
 
 
+    # =========================
+    # Volatility
+    # =========================
+
+
     @staticmethod
-    def _score_supply_demand(
-        supply_demand,
+    def _score_volatility(
+        result: AnalysisResult,
     ) -> SignalComponent:
 
 
-        if supply_demand == "demand":
+        if result.volatility_score != 0:
 
             return SignalComponent(
-                name="supply_demand",
-                score=20,
-                reason=(
-                    "Demand zone detected."
-                ),
+                name="volatility",
+                score=result.volatility_score,
+                reason="Volatility analysis score.",
             )
 
 
-        if supply_demand == "supply":
+
+        return SignalComponent(
+            name="volatility",
+            score=0,
+            reason="No volatility signal.",
+        )
+
+
+
+    # =========================
+    # Supply Demand
+    # =========================
+
+
+    @staticmethod
+    def _score_supply_demand(
+        result: AnalysisResult,
+    ) -> SignalComponent:
+
+
+        if result.supply_demand == "demand":
 
             return SignalComponent(
                 name="supply_demand",
-                score=-20,
-                reason=(
-                    "Supply zone detected."
-                ),
+                score=15,
+                reason="Demand zone detected.",
             )
+
+
+
+        if result.supply_demand == "supply":
+
+            return SignalComponent(
+                name="supply_demand",
+                score=-15,
+                reason="Supply zone detected.",
+            )
+
 
 
         return SignalComponent(
             name="supply_demand",
             score=0,
-            reason=(
-                "No supply/demand signal."
-            ),
+            reason="No supply/demand signal.",
         )
 
+
+
+    # =========================
+    # Price Action
+    # =========================
+
+
+    @staticmethod
+    def _score_price_action(
+        result: AnalysisResult,
+    ) -> SignalComponent:
+
+
+        if result.price_action_score != 0:
+
+            return SignalComponent(
+                name="price_action",
+                score=result.price_action_score,
+                reason="Price action score.",
+            )
+
+
+
+        return SignalComponent(
+            name="price_action",
+            score=0,
+            reason="No price action signal.",
+        )
+
+
+
+    # =========================
+    # Direction
+    # =========================
 
 
     @staticmethod
@@ -282,9 +396,11 @@ class AnalysisScorer:
             return "BUY"
 
 
+
         if score < 0:
 
             return "SELL"
+
 
 
         return "NEUTRAL"
