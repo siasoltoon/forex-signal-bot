@@ -2,25 +2,30 @@ from __future__ import annotations
 
 from analysis.models import (
     AnalysisScore,
+    AnalysisResult,
     SignalComponent,
 )
 
 
 class AnalysisScorer:
     """
-    Convert technical analysis results
-    into a normalized trading score.
+    Professional scoring engine.
+
+    Combines:
+    - Trend
+    - Momentum
+    - Supply/Demand
+    - Market Structure
     """
+
 
     def score(
         self,
-        analysis_result,
+        analysis_result: AnalysisResult,
     ) -> AnalysisScore:
-        """
-        Calculate final analysis score.
-        """
 
-        components = []
+        components: list[SignalComponent] = []
+
 
         components.append(
             self._score_trend(
@@ -28,11 +33,21 @@ class AnalysisScorer:
             )
         )
 
+
         components.append(
             self._score_momentum(
                 analysis_result.momentum
             )
         )
+
+
+        if analysis_result.supply_demand:
+
+            components.append(
+                self._score_supply_demand(
+                    analysis_result.supply_demand
+                )
+            )
 
 
         total_score = sum(
@@ -46,7 +61,7 @@ class AnalysisScorer:
             min(
                 100,
                 total_score,
-            ),
+            )
         )
 
 
@@ -61,16 +76,18 @@ class AnalysisScorer:
         )
 
 
+
     @staticmethod
     def _score_trend(
         trend: str,
     ) -> SignalComponent:
 
+
         if trend == "bullish":
             return SignalComponent(
                 name="trend",
                 score=30,
-                reason="Price is above moving average.",
+                reason="Price above moving average.",
             )
 
 
@@ -78,7 +95,7 @@ class AnalysisScorer:
             return SignalComponent(
                 name="trend",
                 score=-30,
-                reason="Price is below moving average.",
+                reason="Price below moving average.",
             )
 
 
@@ -89,16 +106,18 @@ class AnalysisScorer:
         )
 
 
+
     @staticmethod
     def _score_momentum(
         momentum: str,
     ) -> SignalComponent:
 
+
         if momentum == "oversold":
             return SignalComponent(
                 name="momentum",
                 score=20,
-                reason="RSI indicates oversold condition.",
+                reason="RSI oversold.",
             )
 
 
@@ -106,7 +125,7 @@ class AnalysisScorer:
             return SignalComponent(
                 name="momentum",
                 score=-20,
-                reason="RSI indicates overbought condition.",
+                reason="RSI overbought.",
             )
 
 
@@ -117,17 +136,58 @@ class AnalysisScorer:
         )
 
 
+
+    @staticmethod
+    def _score_supply_demand(
+        zone,
+    ) -> SignalComponent:
+
+
+        if getattr(
+            zone,
+            "type",
+            None
+        ) == "demand":
+
+            return SignalComponent(
+                name="supply_demand",
+                score=25,
+                reason="Price inside demand zone.",
+            )
+
+
+        if getattr(
+            zone,
+            "type",
+            None
+        ) == "supply":
+
+            return SignalComponent(
+                name="supply_demand",
+                score=-25,
+                reason="Price inside supply zone.",
+            )
+
+
+        return SignalComponent(
+            name="supply_demand",
+            score=0,
+            reason="No active zone.",
+        )
+
+
+
     @staticmethod
     def _direction(
         score: float,
     ) -> str:
 
-        if score >= 20:
+        if score >= 50:
             return "BUY"
 
 
-        if score <= -20:
+        if score <= -50:
             return "SELL"
 
 
-        return "NEUTRAL"
+        return "HOLD"
