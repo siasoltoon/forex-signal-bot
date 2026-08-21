@@ -3,10 +3,17 @@ from __future__ import annotations
 
 from analysis.models import (
     AnalysisResult,
+)
+
+
+from analysis.report import (
     AnalysisReport,
 )
 
-from analysis.candle import Candle
+
+from analysis.candle import (
+    Candle,
+)
 
 
 from analysis.market_structure import (
@@ -16,11 +23,6 @@ from analysis.market_structure import (
 
 from analysis.scoring import (
     AnalysisScorer,
-)
-
-
-from analysis.models import (
-    AnalysisResult,
 )
 
 
@@ -96,7 +98,6 @@ class FullAnalysisEngine:
     """
 
 
-
     def __init__(self) -> None:
 
 
@@ -163,7 +164,6 @@ class FullAnalysisEngine:
         self,
         candles: list[Candle] | list[float],
     ) -> AnalysisReport:
-
 
 
         if not candles:
@@ -234,13 +234,11 @@ class FullAnalysisEngine:
         # Core Engines
         # =========================
 
-
         structure = (
             self.structure_detector.analyze(
                 closes
             )
         )
-
 
 
         indicator_snapshot = (
@@ -250,13 +248,11 @@ class FullAnalysisEngine:
         )
 
 
-
         momentum_result = (
             self.momentum_engine.analyze(
                 indicator_snapshot.values
             )
         )
-
 
 
         price_action_result = (
@@ -266,13 +262,11 @@ class FullAnalysisEngine:
         )
 
 
-
         supply_demand_result = (
             self.supply_demand_engine.analyze(
                 closes
             )
         )
-
 
 
         candlestick_result = (
@@ -282,18 +276,15 @@ class FullAnalysisEngine:
         )
 
 
-        
         # =========================
         # Advanced Pattern Engines
         # =========================
-
 
         elliott_result = (
             self.elliott_engine.analyze(
                 closes
             )
         )
-
 
 
         harmonic_result = (
@@ -303,13 +294,11 @@ class FullAnalysisEngine:
         )
 
 
-
         brooks_result = (
             self.brooks_engine.analyze(
                 closes
             )
         )
-
 
 
         wyckoff_result = (
@@ -319,7 +308,6 @@ class FullAnalysisEngine:
         )
 
 
-
         smc_result = (
             self.smc_engine.analyze(
                 closes
@@ -327,11 +315,10 @@ class FullAnalysisEngine:
         )
 
 
-
+        
         # =========================
         # Build Analysis Result
         # =========================
-
 
         analysis_result = AnalysisResult(
 
@@ -527,7 +514,6 @@ class FullAnalysisEngine:
         # Final Score
         # =========================
 
-
         score = (
             self.scorer.score(
                 analysis_result
@@ -551,7 +537,6 @@ class FullAnalysisEngine:
         # =========================
         # Final Report
         # =========================
-
 
         return AnalysisReport(
 
