@@ -9,8 +9,7 @@ from datetime import datetime
 )
 class AnalysisCandle:
     """
-    Standard OHLCV candle model
-    used by analysis engines.
+    Standard OHLCV candle model.
     """
 
     timestamp: datetime
@@ -27,9 +26,6 @@ class AnalysisCandle:
 
 
     def __post_init__(self) -> None:
-        """
-        Validate candle values.
-        """
 
         if self.high < self.low:
             raise ValueError(
@@ -38,22 +34,22 @@ class AnalysisCandle:
 
         if self.open <= 0:
             raise ValueError(
-                "open price must be positive."
+                "open must be positive."
             )
 
         if self.high <= 0:
             raise ValueError(
-                "high price must be positive."
+                "high must be positive."
             )
 
         if self.low <= 0:
             raise ValueError(
-                "low price must be positive."
+                "low must be positive."
             )
 
         if self.close <= 0:
             raise ValueError(
-                "close price must be positive."
+                "close must be positive."
             )
 
         if self.volume < 0:
@@ -64,9 +60,6 @@ class AnalysisCandle:
 
     @property
     def body_size(self) -> float:
-        """
-        Candle body size.
-        """
 
         return abs(
             self.close - self.open
@@ -75,17 +68,71 @@ class AnalysisCandle:
 
     @property
     def is_bullish(self) -> bool:
-        """
-        Bullish candle check.
-        """
 
         return self.close > self.open
 
 
     @property
     def is_bearish(self) -> bool:
-        """
-        Bearish candle check.
-        """
 
         return self.close < self.open
+
+
+
+@dataclass(
+    frozen=True
+)
+class AnalysisScore:
+    """
+    Normalized analysis scoring model.
+    """
+
+    bullish: float = 0.0
+
+    bearish: float = 0.0
+
+    confidence: float = 0.0
+
+
+    def __post_init__(self) -> None:
+
+        if self.bullish < 0:
+            raise ValueError(
+                "bullish score cannot be negative."
+            )
+
+        if self.bearish < 0:
+            raise ValueError(
+                "bearish score cannot be negative."
+            )
+
+        if not 0 <= self.confidence <= 1:
+            raise ValueError(
+                "confidence must be between 0 and 1."
+            )
+
+
+    @property
+    def bias(self) -> str:
+
+        if self.bullish > self.bearish:
+            return "bullish"
+
+        if self.bearish > self.bullish:
+            return "bearish"
+
+        return "neutral"
+
+
+
+@dataclass(
+    frozen=True
+)
+class PriceData:
+    """
+    Generic price container.
+    """
+
+    close: float
+
+    timestamp: datetime | None = None
