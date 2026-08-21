@@ -96,7 +96,7 @@ class AnalysisReport:
 
 
     # ==================================================
-    # Risk Management Layer
+    # Professional Risk Management
     # ==================================================
 
     entry_price: float | None = None
@@ -108,7 +108,29 @@ class AnalysisReport:
     take_profit: float | None = None
 
 
+    take_profit_1: float | None = None
+
+
+    take_profit_2: float | None = None
+
+
+    take_profit_3: float | None = None
+
+
     risk_reward: float | None = None
+
+
+    position_size: float | None = None
+
+
+    risk_amount: float | None = None
+
+
+    trailing_stop: float | None = None
+
+
+    market_condition: str = "UNKNOWN"
+
 
 
 
@@ -135,6 +157,7 @@ class AnalysisReport:
 
 
 
+
     # ==================================================
     # Explanation Layer
     # ==================================================
@@ -150,6 +173,7 @@ class AnalysisReport:
 
 
 
+
     # ==================================================
     # Indicators Snapshot
     # ==================================================
@@ -161,7 +185,7 @@ class AnalysisReport:
     )
 
 
-
+    
     # ==================================================
     # Helper Methods
     # ==================================================
@@ -173,13 +197,16 @@ class AnalysisReport:
         Returns confidence as percentage.
         """
 
+
         value = int(
 
             self.confidence * 100
 
         )
 
+
         return f"{value}%"
+
 
 
 
@@ -191,9 +218,11 @@ class AnalysisReport:
         into readable grade.
         """
 
+
         if self.confidence >= 0.85:
 
             return "VERY_HIGH"
+
 
 
         elif self.confidence >= 0.70:
@@ -201,9 +230,11 @@ class AnalysisReport:
             return "HIGH"
 
 
+
         elif self.confidence >= 0.50:
 
             return "MEDIUM"
+
 
 
         elif self.confidence >= 0.30:
@@ -211,7 +242,9 @@ class AnalysisReport:
             return "LOW"
 
 
+
         return "VERY_LOW"
+
 
 
 
@@ -221,6 +254,7 @@ class AnalysisReport:
         """
         Returns engine votes.
         """
+
 
         return {
 
@@ -234,12 +268,14 @@ class AnalysisReport:
 
 
 
+
     def is_strong_signal(
         self,
     ) -> bool:
         """
-        Checks if signal has strong confirmation.
+        Checks signal confirmation.
         """
+
 
         return (
 
@@ -253,12 +289,14 @@ class AnalysisReport:
 
 
 
+
     def has_risk_setup(
         self,
     ) -> bool:
         """
         Checks if trade management exists.
         """
+
 
         return (
 
@@ -276,6 +314,44 @@ class AnalysisReport:
 
 
 
+
+    def risk_summary(
+        self,
+    ) -> dict[str, Any]:
+        """
+        Returns professional risk information.
+        """
+
+
+        return {
+
+            "entry": self.entry_price,
+
+            "stop_loss": self.stop_loss,
+
+            "take_profit": self.take_profit,
+
+            "take_profit_1": self.take_profit_1,
+
+            "take_profit_2": self.take_profit_2,
+
+            "take_profit_3": self.take_profit_3,
+
+            "risk_reward": self.risk_reward,
+
+            "position_size": self.position_size,
+
+            "risk_amount": self.risk_amount,
+
+            "trailing_stop": self.trailing_stop,
+
+            "market_condition": self.market_condition,
+
+        }
+
+
+
+
     def summary(
         self,
     ) -> dict[str, Any]:
@@ -287,38 +363,69 @@ class AnalysisReport:
         - AI layer
         """
 
+
         return {
+
 
             "symbol": self.symbol,
 
+
             "timeframe": self.timeframe,
+
 
             "trend": self.trend,
 
+
             "structure": self.structure,
+
 
             "signal": self.signal,
 
+
             "score": self.score,
+
 
             "confidence": self.confidence_percentage(),
 
+
             "confidence_grade": self.confidence_label(),
+
 
             "agreement": self.agreement,
 
+
             "votes": self.vote_summary(),
 
-            "risk": self.risk_level,
 
-            "bias": self.decision_bias,
+            "risk_level": self.risk_level,
 
-            "entry": self.entry_price,
 
-            "stop_loss": self.stop_loss,
+            "decision_bias": self.decision_bias,
 
-            "take_profit": self.take_profit,
 
-            "risk_reward": self.risk_reward,
+            "risk_management": self.risk_summary(),
+
+
+            "smc": {
+
+                "bias": self.smc_bias,
+
+                "structure": self.smc_structure,
+
+                "order_block": self.order_block,
+
+                "liquidity": self.liquidity,
+
+                "fair_value_gap": self.fair_value_gap,
+
+                "premium_discount": self.premium_discount,
+
+            },
+
+
+            "reasons": self.reasons,
+
+
+            "analysis_text": self.analysis_text,
 
         }
