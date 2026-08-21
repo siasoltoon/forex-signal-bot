@@ -8,10 +8,15 @@ from analysis.models import (
     SignalComponent,
 )
 
+from analysis.scoring import (
+    AnalysisScorer,
+)
+
 
 __all__ = [
     "AnalysisEngine",
     "AnalysisResult",
     "AnalysisScore",
     "SignalComponent",
+    "AnalysisScorer",
 ]
