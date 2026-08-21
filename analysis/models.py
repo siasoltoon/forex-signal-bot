@@ -55,9 +55,18 @@ class AnalysisScore:
 # Complete Analysis Result
 # ==================================================
 
-
+@dataclass(
+    frozen=True
+)
+class AnalysisResult:
+    """
     Complete technical analysis state.
     """
+
+
+    # =========================
+    # Core Analysis
+    # =========================
 
     trend: str
 
@@ -111,32 +120,39 @@ class AnalysisScore:
     wyckoff_score: float = 0.0
 
 
-
+    
     # =========================
     # Smart Money Concepts
     # =========================
 
     smart_money_score: float = 0.0
 
+
     smc_bias: str = "neutral"
+
 
     smc_structure: str = "none"
 
+
     order_block: str = "none"
+
 
     liquidity: str = "none"
 
+
     fair_value_gap: bool = False
+
 
     premium_discount: str = "none"
 
 
 
     # =========================
-    # Future AI
+    # Future AI Layer
     # =========================
 
     ai_score: float = 0.0
+
 
     liquidity_score: float = 0.0
 
@@ -148,75 +164,4 @@ class AnalysisScore:
 
     reasons: list[str] = field(
         default_factory=list
-    )
-
-
-
-# ==================================================
-# User Report
-# ==================================================
-
-@dataclass(
-    frozen=True
-)
-class AnalysisReport:
-    """
-    Final user-facing report.
-    """
-
-
-    trend: str
-
-
-    structure: str
-
-
-    score: float
-
-
-    signal: str
-
-
-    confidence: float
-
-
-
-    # =========================
-    # Smart Money Output
-    # =========================
-
-    smc_bias: str = "neutral"
-
-
-    smc_structure: str = "none"
-
-
-    order_block: str = "none"
-
-
-    liquidity: str = "none"
-
-
-    fair_value_gap: bool = False
-
-
-    premium_discount: str = "none"
-
-
-
-    # =========================
-    # Explanation
-    # =========================
-
-    reasons: list[str] = field(
-        default_factory=list
-    )
-
-
-    # =========================
-    # Indicators
-    # =========================
-
-    indicators: dict[str, Any] = field(
-        default_factory=dict
     )
