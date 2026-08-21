@@ -52,6 +52,11 @@ from analysis.elliott_engine import (
 )
 
 
+from analysis.harmonic_engine import (
+    HarmonicEngine,
+)
+
+
 
 class FullAnalysisEngine:
     """
@@ -66,6 +71,7 @@ class FullAnalysisEngine:
     - Supply Demand
     - Candlestick
     - Elliott Wave
+    - Harmonic Patterns
     - Scoring
     """
 
@@ -109,6 +115,11 @@ class FullAnalysisEngine:
         )
 
 
+        self.harmonic_engine = (
+            HarmonicEngine()
+        )
+
+
         self.scorer = AnalysisScorer()
 
 
@@ -117,7 +128,6 @@ class FullAnalysisEngine:
         self,
         candles: list[Candle] | list[float],
     ) -> AnalysisReport:
-
 
 
         # =========================
@@ -269,6 +279,18 @@ class FullAnalysisEngine:
 
 
         # =========================
+        # Harmonic Patterns
+        # =========================
+
+        harmonic_result = (
+            self.harmonic_engine.analyze(
+                closes
+            )
+        )
+
+
+
+        # =========================
         # Build Analysis Result
         # =========================
 
@@ -283,6 +305,9 @@ class FullAnalysisEngine:
             indicators=indicator_snapshot.values,
 
 
+            candles=candle_data,
+
+
             supply_demand=(
                 supply_demand_result.zone
             ),
@@ -293,9 +318,7 @@ class FullAnalysisEngine:
 
 
             momentum_score=(
-
                 momentum_result.score
-
             ),
 
 
@@ -340,6 +363,14 @@ class FullAnalysisEngine:
 
 
 
+            harmonic_score=(
+
+                harmonic_result.score
+
+            ),
+
+
+
             reasons=(
 
                 momentum_result.reasons
@@ -357,6 +388,8 @@ class FullAnalysisEngine:
                     candlestick_result.reason,
 
                     elliott_result.reason,
+
+                    harmonic_result.reason,
 
                 ]
 
