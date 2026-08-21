@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from analysis.report import AnalysisReport
 
+
 from analysis.candle import Candle
 
 
@@ -162,6 +163,7 @@ class FullAnalysisEngine:
     ) -> AnalysisReport:
 
 
+
         if not candles:
 
             raise ValueError(
@@ -308,8 +310,7 @@ class FullAnalysisEngine:
             )
         )
 
-
-
+        
         analysis_result = AnalysisResult(
 
 
@@ -326,7 +327,9 @@ class FullAnalysisEngine:
 
 
             supply_demand=(
+
                 supply_demand_result.zone
+
             ),
 
 
@@ -336,7 +339,9 @@ class FullAnalysisEngine:
 
 
             momentum_score=(
+
                 momentum_result.score
+
             ),
 
 
@@ -358,43 +363,57 @@ class FullAnalysisEngine:
 
 
             price_action_score=(
+
                 price_action_result.score
+
             ),
 
 
 
             candlestick_score=(
+
                 candlestick_result.score
+
             ),
 
 
 
             elliott_score=(
+
                 elliott_result.score
+
             ),
 
 
 
             harmonic_score=(
+
                 harmonic_result.score
+
             ),
 
 
 
             brooks_score=(
+
                 brooks_result.score
+
             ),
 
 
 
             wyckoff_score=(
+
                 wyckoff_result.score
+
             ),
 
 
 
-            smc_score=(
+            smart_money_score=(
+
                 smc_result.score
+
             ),
 
 
@@ -454,6 +473,7 @@ class FullAnalysisEngine:
 
 
         return AnalysisReport(
+
 
             trend=structure.trend,
 
