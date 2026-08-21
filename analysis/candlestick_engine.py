@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+
 from dataclasses import dataclass
+
 
 from analysis.candle import Candle
 
@@ -16,6 +18,8 @@ class CandlestickResult:
 
     pattern: str
 
+    direction: str
+
     score: float
 
     strength: float
@@ -24,17 +28,27 @@ class CandlestickResult:
 
 
 
+
+
 class CandlestickEngine:
     """
-    Detects important candlestick patterns.
+    Advanced candlestick pattern detector.
 
-    Supports:
+    Supported patterns:
 
     - Bullish Engulfing
     - Bearish Engulfing
     - Hammer
     - Shooting Star
     - Doji
+
+    Output:
+
+    - Pattern name
+    - Direction
+    - Score
+    - Strength
+    - Explanation
     """
 
 
@@ -46,15 +60,17 @@ class CandlestickEngine:
 
 
 
-        if len(candles) < 2:
+        if not candles or len(candles) < 2:
 
             return CandlestickResult(
 
                 pattern="none",
 
-                score=0,
+                direction="neutral",
 
-                strength=0,
+                score=0.0,
+
+                strength=0.0,
 
                 reason="Not enough candle data.",
 
@@ -69,17 +85,13 @@ class CandlestickEngine:
 
 
         previous_open = previous.open
-
         previous_close = previous.close
 
 
         current_open = current.open
-
         current_close = current.close
 
-
         current_high = current.high
-
         current_low = current.low
 
 
@@ -101,9 +113,11 @@ class CandlestickEngine:
 
                 pattern="none",
 
-                score=0,
+                direction="neutral",
 
-                strength=0,
+                score=0.0,
+
+                strength=0.0,
 
                 reason="Invalid candle range.",
 
@@ -137,11 +151,15 @@ class CandlestickEngine:
 
                 pattern="bullish_engulfing",
 
-                score=15,
+                direction="bullish",
 
-                strength=90,
+                score=15.0,
 
-                reason="Bullish engulfing pattern detected.",
+                strength=90.0,
+
+                reason=(
+                    "Bullish engulfing pattern detected."
+                ),
 
             )
 
@@ -173,18 +191,22 @@ class CandlestickEngine:
 
                 pattern="bearish_engulfing",
 
-                score=-15,
+                direction="bearish",
 
-                strength=90,
+                score=-15.0,
 
-                reason="Bearish engulfing pattern detected.",
+                strength=90.0,
+
+                reason=(
+                    "Bearish engulfing pattern detected."
+                ),
 
             )
 
 
 
         # =========================
-        # Hammer
+        # Candle Shadows
         # =========================
 
         lower_shadow = (
@@ -201,35 +223,6 @@ class CandlestickEngine:
         )
 
 
-
-        if (
-
-            lower_shadow > body * 2
-
-            and
-
-            body < candle_range * 0.4
-
-        ):
-
-            return CandlestickResult(
-
-                pattern="hammer",
-
-                score=10,
-
-                strength=70,
-
-                reason="Hammer reversal pattern detected.",
-
-            )
-
-
-
-        # =========================
-        # Shooting Star
-        # =========================
-
         upper_shadow = (
 
             current_high
@@ -245,13 +238,49 @@ class CandlestickEngine:
 
 
 
+        # =========================
+        # Hammer
+        # =========================
+
         if (
 
-            upper_shadow > body * 2
+            lower_shadow >= body * 2
 
             and
 
-            body < candle_range * 0.4
+            body <= candle_range * 0.4
+
+        ):
+
+            return CandlestickResult(
+
+                pattern="hammer",
+
+                direction="bullish",
+
+                score=10.0,
+
+                strength=70.0,
+
+                reason=(
+                    "Hammer reversal pattern detected."
+                ),
+
+            )
+
+
+
+        # =========================
+        # Shooting Star
+        # =========================
+
+        if (
+
+            upper_shadow >= body * 2
+
+            and
+
+            body <= candle_range * 0.4
 
         ):
 
@@ -259,11 +288,15 @@ class CandlestickEngine:
 
                 pattern="shooting_star",
 
-                score=-10,
+                direction="bearish",
 
-                strength=70,
+                score=-10.0,
 
-                reason="Shooting star reversal pattern detected.",
+                strength=70.0,
+
+                reason=(
+                    "Shooting star reversal pattern detected."
+                ),
 
             )
 
@@ -273,30 +306,46 @@ class CandlestickEngine:
         # Doji
         # =========================
 
-        if body <= candle_range * 0.1:
+        if (
+
+            body <= candle_range * 0.1
+
+        ):
 
             return CandlestickResult(
 
                 pattern="doji",
 
-                score=0,
+                direction="neutral",
 
-                strength=50,
+                score=0.0,
 
-                reason="Doji candle shows market indecision.",
+                strength=50.0,
+
+                reason=(
+                    "Doji candle shows market indecision."
+                ),
 
             )
 
 
 
+        # =========================
+        # No Pattern
+        # =========================
+
         return CandlestickResult(
 
             pattern="none",
 
-            score=0,
+            direction="neutral",
 
-            strength=0,
+            score=0.0,
 
-            reason="No candlestick pattern detected.",
+            strength=0.0,
+
+            reason=(
+                "No candlestick pattern detected."
+            ),
 
         )
