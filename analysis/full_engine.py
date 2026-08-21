@@ -4,6 +4,9 @@ from __future__ import annotations
 from analysis.report import AnalysisReport
 
 
+from analysis.candle import Candle
+
+
 from analysis.market_structure import (
     MarketStructureDetector,
 )
@@ -46,6 +49,7 @@ class FullAnalysisEngine:
 
     Combines:
 
+    - Candles
     - Market Structure
     - Indicators
     - Momentum
@@ -90,8 +94,18 @@ class FullAnalysisEngine:
 
     def analyze(
         self,
-        closes: list[float],
+        candles: list[Candle],
     ) -> AnalysisReport:
+
+
+        # =========================
+        # Extract close prices
+        # =========================
+
+        closes = [
+            candle.close
+            for candle in candles
+        ]
 
 
 
@@ -161,7 +175,6 @@ class FullAnalysisEngine:
 
         analysis_result = AnalysisResult(
 
-
             trend=structure.trend,
 
 
@@ -171,6 +184,8 @@ class FullAnalysisEngine:
             indicators=indicator_snapshot.values,
 
 
+            candles=candles,
+
 
             supply_demand=(
                 supply_demand_result.zone
@@ -179,7 +194,6 @@ class FullAnalysisEngine:
 
 
             trend_score=0.0,
-
 
 
             momentum_score=(
@@ -223,9 +237,7 @@ class FullAnalysisEngine:
                 +
 
                 [
-
                     supply_demand_result.reason
-
                 ]
 
             ),
