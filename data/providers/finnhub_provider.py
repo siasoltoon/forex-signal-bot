@@ -16,81 +16,292 @@ logger = setup_logger()
 
 class FinnhubProvider(MarketDataProvider):
     """
-    Finnhub market data provider.
+    Production-grade Finnhub market data provider.
 
-    Converts Finnhub candle responses into
-    the application's standard Candle model.
+    Responsibilities:
+    - Validate request parameters.
+    - Normalize supported timeframes.
+    - Calculate the required Unix timestamp range.
+    - Request candle data through FinnhubClient.
+    - Validate the API response.
+    - Convert valid candles into Candle models.
+    - Preserve chronological ordering.
+    - Return at most `limit` candles.
     """
 
     name = "finnhub"
 
-    _TIMEFRAME_MINUTES: Final[dict[str, int]] = {
-        "1": 1,
-        "5": 5,
-        "15": 15,
-        "30": 30,
-        "60": 60,
-    }
-
-    _TIMEFRAME_ALIASES: Final[dict[str, str]] = {
+    _TIMEFRAME_ALIASES: Final[
+        dict[str, str]
+    ] = {
         "M1": "1",
         "M5": "5",
         "M15": "15",
         "M30": "30",
         "H1": "60",
+        "D": "D",
+        "1D": "D",
+        "W": "W",
+        "1W": "W",
+        "M": "M",
+        "1M": "M",
     }
 
-    def __init__(self) -> None:
-        self.client = FinnhubClient()
+    _TIMEFRAME_MINUTES: Final[
+        dict[str, int]
+    ] = {
+        "1": 1,
+        "5": 5,
+        "15": 15,
+        "30": 30,
+        "60": 60,
+        "D": 1440,
+        "W": 10080,
+        "M": 43200,
+    }
 
-    def _normalize_timeframe(
+    _MAX_LIMIT: Final[int] = 5000
+
+    def __init__(
         self,
+        client: FinnhubClient | None = None,
+    ) -> None:
+
+        self.client = (
+            client
+            if client is not None
+            else FinnhubClient()
+        )
+
+    @classmethod
+    def _normalize_timeframe(
+        cls,
         timeframe: str,
     ) -> str:
-        normalized = timeframe.strip().upper()
 
-        return self._TIMEFRAME_ALIASES.get(
+        if not isinstance(
+            timeframe,
+            str,
+        ):
+            raise TypeError(
+                "timeframe must be a string."
+            )
+
+        normalized = (
+            timeframe
+            .strip()
+            .upper()
+        )
+
+        return cls._TIMEFRAME_ALIASES.get(
             normalized,
             normalized,
         )
 
+    @classmethod
+    def _validate_timeframe(
+        cls,
+        timeframe: str,
+    ) -> str:
+
+        normalized = (
+            cls._normalize_timeframe(
+                timeframe
+            )
+        )
+
+        if normalized not in cls._TIMEFRAME_MINUTES:
+            raise ValueError(
+                f"Unsupported Finnhub timeframe: "
+                f"{timeframe}"
+            )
+
+        return normalized
+
+    @staticmethod
+    def _validate_request(
+        symbol: str,
+        timeframe: str,
+        limit: int,
+    ) -> None:
+
+        if not isinstance(
+            symbol,
+            str,
+        ):
+            raise TypeError(
+                "symbol must be a string."
+            )
+
+        if not symbol.strip():
+            raise ValueError(
+                "symbol cannot be empty."
+            )
+
+        if not isinstance(
+            timeframe,
+            str,
+        ):
+            raise TypeError(
+                "timeframe must be a string."
+            )
+
+        if not timeframe.strip():
+            raise ValueError(
+                "timeframe cannot be empty."
+            )
+
+        if not isinstance(
+            limit,
+            int,
+        ):
+            raise TypeError(
+                "limit must be an integer."
+            )
+
+        if limit < 1:
+            raise ValueError(
+                "limit must be greater than zero."
+            )
+
+        if limit > FinnhubProvider._MAX_LIMIT:
+            raise ValueError(
+                f"limit cannot exceed "
+                f"{FinnhubProvider._MAX_LIMIT}."
+            )
+
+    @classmethod
     def _calculate_time_range(
-        self,
+        cls,
         timeframe: str,
         limit: int,
     ) -> tuple[int, int]:
-        resolution = self._normalize_timeframe(
-            timeframe
-        )
 
-        minutes = self._TIMEFRAME_MINUTES.get(
-            resolution
-        )
-
-        if minutes is None:
-            raise ValueError(
-                f"Unsupported Finnhub timeframe: {timeframe}"
+        resolution = (
+            cls._validate_timeframe(
+                timeframe
             )
+        )
+
+        minutes = cls._TIMEFRAME_MINUTES[
+            resolution
+        ]
 
         now = datetime.now(
             timezone.utc
         )
 
-        seconds = (
+        end_timestamp = int(
+            now.timestamp()
+        )
+
+        total_seconds = (
             minutes
             * 60
             * limit
         )
 
-        start = int(
-            now.timestamp()
-        ) - seconds
-
-        end = int(
-            now.timestamp()
+        start_timestamp = (
+            end_timestamp
+            - total_seconds
         )
 
-        return start, end
+        return (
+            start_timestamp,
+            end_timestamp,
+        )
+
+    @staticmethod
+    def _parse_timestamp(
+        value: object,
+    ) -> datetime:
+
+        timestamp = int(value)
+
+        if timestamp <= 0:
+            raise ValueError(
+                "Finnhub timestamp must be positive."
+            )
+
+        return datetime.fromtimestamp(
+            timestamp,
+            tz=timezone.utc,
+        )
+
+    @staticmethod
+    def _parse_price(
+        value: object,
+    ) -> float:
+
+        price = float(value)
+
+        if price <= 0:
+            raise ValueError(
+                "Price must be greater than zero."
+            )
+
+        return price
+
+    @staticmethod
+    def _parse_volume(
+        value: object,
+    ) -> float:
+
+        volume = float(value)
+
+        if volume < 0:
+            raise ValueError(
+                "Volume cannot be negative."
+            )
+
+        return volume
+
+    def _convert_candle(
+        self,
+        symbol: str,
+        timestamp: object,
+        open_price: object,
+        high: object,
+        low: object,
+        close: object,
+        volume: object,
+    ) -> Candle | None:
+
+        try:
+            return Candle(
+                symbol=symbol,
+                timestamp=self._parse_timestamp(
+                    timestamp
+                ),
+                open=self._parse_price(
+                    open_price
+                ),
+                high=self._parse_price(
+                    high
+                ),
+                low=self._parse_price(
+                    low
+                ),
+                close=self._parse_price(
+                    close
+                ),
+                volume=self._parse_volume(
+                    volume
+                ),
+            )
+
+        except (
+            TypeError,
+            ValueError,
+            OverflowError,
+        ) as error:
+
+            logger.warning(
+                "Skipping invalid Finnhub candle: %s",
+                error,
+            )
+
+            return None
 
     async def get_candles(
         self,
@@ -99,60 +310,68 @@ class FinnhubProvider(MarketDataProvider):
         limit: int = 100,
     ) -> list[Candle]:
         """
-        Fetch candles from Finnhub
-        and convert them into Candle models.
+        Fetch and normalize Finnhub candles.
         """
 
-        if not symbol:
-            raise ValueError(
-                "symbol cannot be empty."
-            )
-
-        if not timeframe:
-            raise ValueError(
-                "timeframe cannot be empty."
-            )
-
-        if limit < 1:
-            raise ValueError(
-                "limit must be greater than zero."
-            )
-
-        resolution = self._normalize_timeframe(
-            timeframe
+        self._validate_request(
+            symbol=symbol,
+            timeframe=timeframe,
+            limit=limit,
         )
 
-        from_timestamp, to_timestamp = (
-            self._calculate_time_range(
-                resolution,
-                limit,
+        normalized_symbol = (
+            symbol.strip().upper()
+        )
+
+        resolution = (
+            self._validate_timeframe(
+                timeframe
             )
+        )
+
+        (
+            from_timestamp,
+            to_timestamp,
+        ) = self._calculate_time_range(
+            timeframe=resolution,
+            limit=limit,
         )
 
         try:
-            response = await self.client.get_candles(
-                symbol=symbol,
-                resolution=resolution,
-                from_timestamp=from_timestamp,
-                to_timestamp=to_timestamp,
+            response = (
+                await self.client.get_candles(
+                    symbol=normalized_symbol,
+                    resolution=resolution,
+                    from_timestamp=from_timestamp,
+                    to_timestamp=to_timestamp,
+                )
             )
 
         except Exception as error:
+
             logger.exception(
-                "Finnhub candle request failed."
+                "Finnhub candle request failed "
+                "for %s.",
+                normalized_symbol,
             )
 
             raise ApplicationError(
                 "Failed to fetch Finnhub candles.",
                 {
                     "provider": self.name,
-                    "symbol": symbol,
-                    "timeframe": timeframe,
+                    "symbol": normalized_symbol,
+                    "timeframe": resolution,
                     "limit": limit,
                 },
             ) from error
 
         if response is None:
+            logger.warning(
+                "Finnhub returned no candle data "
+                "for %s.",
+                normalized_symbol,
+            )
+
             return []
 
         if not isinstance(
@@ -163,108 +382,49 @@ class FinnhubProvider(MarketDataProvider):
                 "Invalid Finnhub response.",
                 {
                     "provider": self.name,
-                    "symbol": symbol,
+                    "symbol": normalized_symbol,
                 },
             )
 
-        timestamps = response.get("t", [])
-        opens = response.get("o", [])
-        highs = response.get("h", [])
-        lows = response.get("l", [])
-        closes = response.get("c", [])
-        volumes = response.get("v", [])
+        status = response.get("s")
 
-        if not all(
-            isinstance(value, list)
-            for value in (
-                timestamps,
-                opens,
-                highs,
-                lows,
-                closes,
-                volumes,
-            )
-        ):
-            raise ApplicationError(
-                "Invalid Finnhub candle payload.",
-                {
-                    "provider": self.name,
-                    "symbol": symbol,
-                },
+        if status != "ok":
+            logger.warning(
+                "Finnhub returned non-ok status: %s",
+                status,
             )
 
-        lengths = {
-            len(timestamps),
-            len(opens),
-            len(highs),
-            len(lows),
-            len(closes),
-            len(volumes),
-        }
+            return []
 
-        if len(lengths) != 1:
-            raise ApplicationError(
-                "Finnhub candle arrays have "
-                "inconsistent lengths.",
-                {
-                    "provider": self.name,
-                    "symbol": symbol,
-                },
-            )
-
-        candles: list[Candle] = []
-
-        for (
-            timestamp,
-            open_price,
-            high,
-            low,
-            close,
-            volume,
-        ) in zip(
-            timestamps,
-            opens,
-            highs,
-            lows,
-            closes,
-            volumes,
-        ):
-            try:
-                candle = Candle(
-                    symbol=symbol,
-                    timestamp=datetime.fromtimestamp(
-                        int(timestamp),
-                        tz=timezone.utc,
-                    ),
-                    open=float(open_price),
-                    high=float(high),
-                    low=float(low),
-                    close=float(close),
-                    volume=float(volume),
-                )
-
-            except (
-                TypeError,
-                ValueError,
-                OverflowError,
-            ) as error:
-                logger.warning(
-                    "Skipping invalid Finnhub candle: %s",
-                    error,
-                )
-                continue
-
-            candles.append(
-                candle
-            )
-
-        if len(candles) > limit:
-            candles = candles[-limit:]
-
-        logger.info(
-            "Finnhub returned %d valid candles for %s.",
-            len(candles),
-            symbol,
+        timestamps = response.get(
+            "t",
+            []
         )
 
-        return candles
+        opens = response.get(
+            "o",
+            []
+        )
+
+        highs = response.get(
+            "h",
+            []
+        )
+
+        lows = response.get(
+            "l",
+            []
+        )
+
+        closes = response.get(
+            "c",
+            []
+        )
+
+        volumes = response.get(
+            "v",
+            []
+        )
+
+        arrays = (
+            timestamps
