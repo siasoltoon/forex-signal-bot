@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
+
 @dataclass(
     frozen=True
 )
@@ -17,8 +18,13 @@ class SignalComponent:
     """
 
     name: str
+
     score: float
+
     reason: str
+
+
+
 
 
 @dataclass(
@@ -30,8 +36,13 @@ class AnalysisScore:
     """
 
     score: float
+
     direction: str
+
     confidence: float
+
+
+
 
 
 @dataclass(
@@ -43,8 +54,13 @@ class AnalysisReport:
     """
 
     signal: str
+
     score: AnalysisScore
+
     components: list[SignalComponent]
+
+
+
 
 
 @dataclass(
@@ -62,3 +78,11 @@ class AnalysisResult:
     indicators: dict[str, Any]
 
     supply_demand: Any = None
+
+
+    # New fields
+    # Used by advanced engines
+
+    momentum_score: float = 0.0
+
+    momentum_reasons: list[str] | None = None
