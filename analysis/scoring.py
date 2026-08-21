@@ -33,22 +33,12 @@ class AnalysisScorer:
         components: list[SignalComponent] = []
 
 
-
-        # =========================
-        # Trend
-        # =========================
-
         components.append(
             self._score_trend(
                 analysis_result
             )
         )
 
-
-
-        # =========================
-        # Market Structure
-        # =========================
 
         components.append(
             self._score_structure(
@@ -57,22 +47,12 @@ class AnalysisScorer:
         )
 
 
-
-        # =========================
-        # Momentum
-        # =========================
-
         components.append(
             self._score_momentum(
                 analysis_result
             )
         )
 
-
-
-        # =========================
-        # Volatility
-        # =========================
 
         components.append(
             self._score_volatility(
@@ -81,12 +61,11 @@ class AnalysisScorer:
         )
 
 
-
-        # =========================
-        # Supply / Demand
-        # =========================
-
-        if analysis_result.supply_demand:
+        if getattr(
+            analysis_result,
+            "supply_demand",
+            None,
+        ):
 
             components.append(
                 self._score_supply_demand(
@@ -95,11 +74,6 @@ class AnalysisScorer:
             )
 
 
-
-        # =========================
-        # Price Action
-        # =========================
-
         components.append(
             self._score_price_action(
                 analysis_result
@@ -107,15 +81,11 @@ class AnalysisScorer:
         )
 
 
-
         total_score = sum(
             component.score
             for component in components
         )
 
-
-
-        # Limit range
 
         total_score = max(
             -100,
@@ -126,9 +96,7 @@ class AnalysisScorer:
         )
 
 
-
         return AnalysisScore(
-
             score=float(total_score),
 
             direction=self._direction(
@@ -157,14 +125,20 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
-        if result.trend_score != 0:
+        trend_score = getattr(
+            result,
+            "trend_score",
+            0.0,
+        )
+
+
+        if trend_score != 0:
 
             return SignalComponent(
                 name="trend",
-                score=result.trend_score,
+                score=trend_score,
                 reason="Trend score from analysis engine.",
             )
-
 
 
         if result.trend == "bullish":
@@ -176,7 +150,6 @@ class AnalysisScorer:
             )
 
 
-
         if result.trend == "bearish":
 
             return SignalComponent(
@@ -184,7 +157,6 @@ class AnalysisScorer:
                 score=-30,
                 reason="Bearish trend detected.",
             )
-
 
 
         return SignalComponent(
@@ -196,7 +168,7 @@ class AnalysisScorer:
 
 
     # =========================
-    # Structure
+    # Market Structure
     # =========================
 
 
@@ -206,24 +178,29 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
-        if result.structure_score > 0:
+        structure_score = getattr(
+            result,
+            "structure_score",
+            0.0,
+        )
+
+
+        if structure_score > 0:
 
             return SignalComponent(
                 name="structure",
-                score=result.structure_score,
+                score=structure_score,
                 reason="Bullish market structure.",
             )
 
 
-
-        if result.structure_score < 0:
+        if structure_score < 0:
 
             return SignalComponent(
                 name="structure",
-                score=result.structure_score,
+                score=structure_score,
                 reason="Bearish market structure.",
             )
-
 
 
         return SignalComponent(
@@ -245,14 +222,20 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
-        if result.momentum_score != 0:
+        momentum_score = getattr(
+            result,
+            "momentum_score",
+            0.0,
+        )
+
+
+        if momentum_score != 0:
 
             return SignalComponent(
                 name="momentum",
-                score=result.momentum_score,
+                score=momentum_score,
                 reason="Momentum engine score.",
             )
-
 
 
         if result.momentum == "oversold":
@@ -260,9 +243,8 @@ class AnalysisScorer:
             return SignalComponent(
                 name="momentum",
                 score=20,
-                reason="Market oversold.",
+                reason="Market is oversold.",
             )
-
 
 
         if result.momentum == "overbought":
@@ -270,9 +252,8 @@ class AnalysisScorer:
             return SignalComponent(
                 name="momentum",
                 score=-20,
-                reason="Market overbought.",
+                reason="Market is overbought.",
             )
-
 
 
         return SignalComponent(
@@ -294,14 +275,20 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
-        if result.volatility_score != 0:
+        volatility_score = getattr(
+            result,
+            "volatility_score",
+            0.0,
+        )
+
+
+        if volatility_score != 0:
 
             return SignalComponent(
                 name="volatility",
-                score=result.volatility_score,
+                score=volatility_score,
                 reason="Volatility analysis score.",
             )
-
 
 
         return SignalComponent(
@@ -332,7 +319,6 @@ class AnalysisScorer:
             )
 
 
-
         if result.supply_demand == "supply":
 
             return SignalComponent(
@@ -340,7 +326,6 @@ class AnalysisScorer:
                 score=-15,
                 reason="Supply zone detected.",
             )
-
 
 
         return SignalComponent(
@@ -362,14 +347,20 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
-        if result.price_action_score != 0:
+        price_action_score = getattr(
+            result,
+            "price_action_score",
+            0.0,
+        )
+
+
+        if price_action_score != 0:
 
             return SignalComponent(
                 name="price_action",
-                score=result.price_action_score,
+                score=price_action_score,
                 reason="Price action score.",
             )
-
 
 
         return SignalComponent(
@@ -392,15 +383,11 @@ class AnalysisScorer:
 
 
         if score > 0:
-
             return "BUY"
 
 
-
         if score < 0:
-
             return "SELL"
-
 
 
         return "NEUTRAL"
