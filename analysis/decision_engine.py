@@ -19,6 +19,8 @@ class DecisionResult:
 
     signal: str
 
+    strength: str
+
     score: float
 
     confidence: float
@@ -101,14 +103,10 @@ class DecisionEngine:
         # Smart Money
         # -------------------------
 
-        smc_score = (
-
-            getattr(
-                analysis,
-                "smart_money_score",
-                0.0
-            )
-
+        smc_score = getattr(
+            analysis,
+            "smart_money_score",
+            0.0
         )
 
 
@@ -169,7 +167,6 @@ class DecisionEngine:
         )
 
 
-
         if structure_score > 0:
 
             reasons.append(
@@ -205,6 +202,7 @@ class DecisionEngine:
             reasons.append(
                 "Price action confirmation"
             )
+
 
 
         # -------------------------
@@ -246,7 +244,7 @@ class DecisionEngine:
         )
 
 
-
+        
         # -------------------------
         # Pattern Engines
         # -------------------------
@@ -302,17 +300,11 @@ class DecisionEngine:
         # ==================================================
 
         score = max(
-
             0,
-
             min(
-
                 100,
-
                 score
-
             )
-
         )
 
 
@@ -338,29 +330,41 @@ class DecisionEngine:
 
 
         # ==================================================
+        # Signal Strength
+        # ==================================================
+
+        if score >= 80 or score <= 20:
+
+            strength = "STRONG"
+
+
+        elif score >= 60 or score <= 40:
+
+            strength = "MODERATE"
+
+
+        else:
+
+            strength = "WEAK"
+
+
+
+        # ==================================================
         # Confidence
         # ==================================================
 
         confidence = abs(
-
             score - 50
-
         ) / 50
 
 
 
         confidence = max(
-
             0,
-
             min(
-
                 1,
-
                 confidence
-
             )
-
         )
 
 
@@ -379,26 +383,42 @@ class DecisionEngine:
 
 
 
+        # ==================================================
+        # Extra Reason
+        # ==================================================
+
+        reasons.append(
+
+            f"Final score: {round(score,2)}"
+
+        )
+
+
+        reasons.append(
+
+            f"Confidence: {round(confidence,3)}"
+
+        )
+
+
+
         return DecisionResult(
 
             signal=signal,
 
 
+            strength=strength,
+
+
             score=round(
-
                 score,
-
                 2
-
             ),
 
 
             confidence=round(
-
                 confidence,
-
                 3
-
             ),
 
 
