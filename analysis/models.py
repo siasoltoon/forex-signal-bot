@@ -23,6 +23,7 @@ class SignalComponent:
 
 
 
+
 @dataclass(
     frozen=True
 )
@@ -40,6 +41,7 @@ class AnalysisScore:
     components: list[SignalComponent] = field(
         default_factory=list
     )
+
 
 
 
@@ -61,6 +63,7 @@ class AnalysisResult:
     - Candlestick Patterns
     - Elliott Wave
     - Harmonic Patterns
+    - Brooks Price Action
     - Future AI Models
     """
 
@@ -130,6 +133,9 @@ class AnalysisResult:
     wyckoff_score: float = 0.0
 
 
+    brooks_score: float = 0.0
+
+
 
     # =====================
     # Explanation Layer
@@ -138,6 +144,7 @@ class AnalysisResult:
     reasons: list[str] = field(
         default_factory=list
     )
+
 
 
 
