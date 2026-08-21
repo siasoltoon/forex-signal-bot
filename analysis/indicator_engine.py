@@ -14,38 +14,28 @@ from analysis.indicators import (
 )
 
 
-# ==================================================
+# ============================================================
 # Indicator Snapshot
-# ==================================================
+# ============================================================
 
-@dataclass(
-    frozen=True
-)
+@dataclass(frozen=True)
 class IndicatorSnapshot:
     """
-    Complete indicator calculation snapshot.
-
-    Contains:
-
-    - Raw indicator values
-    - Interpreted signals
-    - Directional score
-    - Confidence
-    - Explanation reasons
+    Complete indicator calculation result.
     """
 
     values: dict[str, Any]
 
 
-# ==================================================
+# ============================================================
 # Indicator Engine
-# ==================================================
+# ============================================================
 
 class IndicatorEngine:
     """
-    Central technical indicator engine.
+    Central indicator calculation and interpretation engine.
 
-    Calculates and interprets:
+    Calculates:
 
     - SMA
     - EMA
@@ -57,246 +47,207 @@ class IndicatorEngine:
 
     Also provides:
 
-    - Trend interpretation
-    - Momentum interpretation
-    - Volatility interpretation
-    - Directional scoring
-    - Indicator confidence
-    - Explanation reasons
+    - Indicator interpretation
+    - Direction scoring
+    - Confidence estimation
+    - Human-readable reasons
     """
 
-    def __init__(
-        self,
-        sma_period: int = 20,
-        ema_period: int = 20,
-        rsi_period: int = 14,
-        bollinger_period: int = 20,
-    ) -> None:
-
-        if sma_period < 1:
-            raise ValueError(
-                "sma_period must be >= 1."
-            )
-
-        if ema_period < 1:
-            raise ValueError(
-                "ema_period must be >= 1."
-            )
-
-        if rsi_period < 1:
-            raise ValueError(
-                "rsi_period must be >= 1."
-            )
-
-        if bollinger_period < 1:
-            raise ValueError(
-                "bollinger_period must be >= 1."
-            )
-
-        self.sma_period = sma_period
-
-        self.ema_period = ema_period
-
-        self.rsi_period = rsi_period
-
-        self.bollinger_period = (
-            bollinger_period
-        )
-
-
-    # ==================================================
+    # ========================================================
     # Main Calculation
-    # ==================================================
+    # ========================================================
 
     def calculate(
         self,
         closes: list[float],
     ) -> IndicatorSnapshot:
-
-        if not closes:
-
-            raise ValueError(
-                "Closes cannot be empty."
-            )
-
-        prices = [
-            float(price)
-            for price in closes
-        ]
+        """
+        Calculate all indicators and analyze their signals.
+        """
 
         indicators: dict[str, Any] = {}
 
+        # ----------------------------------------------------
+        # Normalize input
+        # ----------------------------------------------------
 
-        # ==================================================
+        normalized_closes: list[float] = []
+
+        for value in closes:
+            if value is None:
+                continue
+
+            try:
+                normalized_closes.append(float(value))
+            except (TypeError, ValueError):
+                continue
+
+        closes = normalized_closes
+
+        # ----------------------------------------------------
+        # Empty input
+        # ----------------------------------------------------
+
+        if not closes:
+            indicators["sma_20"] = []
+            indicators["ema_20"] = []
+            indicators["rsi"] = []
+
+            indicators["macd"] = {
+                "macd": [],
+                "signal": [],
+                "histogram": [],
+            }
+
+            indicators["stochastic_rsi"] = []
+
+            indicators["bollinger"] = {
+                "upper": [],
+                "middle": [],
+                "lower": [],
+            }
+
+            indicators["standard_deviation"] = []
+
+            indicators["signals"] = {
+                "signals": {},
+                "score": 50.0,
+                "direction": "neutral",
+                "confidence": 0.0,
+                "reasons": [
+                    "No price data available."
+                ],
+            }
+
+            return IndicatorSnapshot(
+                values=indicators
+            )
+
+        # ====================================================
         # Moving Averages
-        # ==================================================
+        # ====================================================
 
-        sma_values = sma(
-            prices,
-            self.sma_period,
+        sma_20 = sma(
+            closes,
+            20,
         )
 
-        ema_values = ema(
-            prices,
-            self.ema_period,
+        ema_20 = ema(
+            closes,
+            20,
         )
 
-        indicators["sma_20"] = sma_values
+        indicators["sma_20"] = sma_20
+        indicators["ema_20"] = ema_20
 
-        indicators["ema_20"] = ema_values
-
-        # Keep configurable aliases as well.
-        indicators["sma"] = sma_values
-
-        indicators["ema"] = ema_values
-
-
-        # ==================================================
-        # RSI
-        # ==================================================
+        # ====================================================
+        # Momentum
+        # ====================================================
 
         rsi_values = rsi(
-            prices,
-            self.rsi_period,
+            closes,
+            14,
+        )
+
+        macd_values = macd(
+            closes,
+        )
+
+        stochastic_values = stochastic_rsi(
+            closes,
         )
 
         indicators["rsi"] = rsi_values
-
-
-        # ==================================================
-        # MACD
-        # ==================================================
-
-        macd_values = macd(
-            prices
-        )
-
         indicators["macd"] = macd_values
-
-
-        # ==================================================
-        # Stochastic RSI
-        # ==================================================
-
-        stochastic_values = (
-            stochastic_rsi(
-                prices
-            )
-        )
-
         indicators["stochastic_rsi"] = (
             stochastic_values
         )
 
-
-        # ==================================================
-        # Bollinger Bands
-        # ==================================================
+        # ====================================================
+        # Volatility
+        # ====================================================
 
         (
-            upper,
-            middle,
-            lower,
+            upper_values,
+            middle_values,
+            lower_values,
         ) = bollinger_bands(
-            prices,
-            self.bollinger_period,
+            closes,
+            20,
         )
 
         indicators["bollinger"] = {
-
-            "upper": upper,
-
-            "middle": middle,
-
-            "lower": lower,
-
+            "upper": upper_values,
+            "middle": middle_values,
+            "lower": lower_values,
         }
 
-
-        # ==================================================
-        # Standard Deviation
-        # ==================================================
-
-        deviation = standard_deviation(
-            prices,
-            self.bollinger_period,
-        )
-
-        indicators[
-            "standard_deviation"
-        ] = deviation
-
-
-        # ==================================================
-        # Interpretation
-        # ==================================================
-
-        interpretation = (
-            self._analyze_signals(
-                prices,
-                rsi_values,
-                macd_values,
-                ema_values,
-                stochastic_values,
-                upper,
-                middle,
-                lower,
+        indicators["standard_deviation"] = (
+            standard_deviation(
+                closes,
+                20,
             )
         )
 
+        # ====================================================
+        # Interpretation Layer
+        # ====================================================
+
         indicators["signals"] = (
-            interpretation["signals"]
+            self._analyze_signals(
+                closes=closes,
+                rsi_values=rsi_values,
+                macd_values=macd_values,
+                ema_values=ema_20,
+                stochastic_values=stochastic_values,
+                upper_values=upper_values,
+                middle_values=middle_values,
+                lower_values=lower_values,
+            )
         )
-
-        indicators["score"] = (
-            interpretation["score"]
-        )
-
-        indicators["direction"] = (
-            interpretation["direction"]
-        )
-
-        indicators["confidence"] = (
-            interpretation["confidence"]
-        )
-
-        indicators["reasons"] = (
-            interpretation["reasons"]
-        )
-
 
         return IndicatorSnapshot(
             values=indicators
         )
 
-
-
-    # ==================================================
-    # Helpers
-    # ==================================================
+    # ========================================================
+    # Generic Latest Value
+    # ========================================================
 
     @staticmethod
     def _latest_value(
         values: Any,
     ) -> float | None:
         """
-        Returns the latest valid numeric value.
+        Safely extract the latest usable numeric value.
+
+        Supports:
+
+        - int
+        - float
+        - list
+        - tuple
+
+        Ignores None and invalid values.
         """
 
         if values is None:
             return None
 
+        if isinstance(
+            values,
+            (int, float),
+        ):
+            try:
+                return float(values)
+            except (TypeError, ValueError):
+                return None
+
         if not isinstance(
             values,
             (list, tuple),
         ):
-            try:
-                return float(values)
-            except (
-                TypeError,
-                ValueError,
-            ):
-                return None
+            return None
 
         for value in reversed(values):
 
@@ -313,24 +264,9 @@ class IndicatorEngine:
 
         return None
 
-
-    @staticmethod
-    def _normalize_score(
-        score: float,
-    ) -> float:
-        """
-        Keeps indicator score inside
-        the standard 0-100 range.
-        """
-
-        return max(
-            0.0,
-            min(
-                100.0,
-                float(score),
-            ),
-        )
-
+    # ========================================================
+    # Safe Ratio
+    # ========================================================
 
     @staticmethod
     def _safe_ratio(
@@ -338,34 +274,1014 @@ class IndicatorEngine:
         denominator: float,
     ) -> float:
         """
-        Safe division helper.
+        Safely calculate numerator / denominator.
         """
+
+        try:
+            numerator = float(numerator)
+            denominator = float(denominator)
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return 0.0
 
         if denominator == 0:
             return 0.0
 
         return numerator / denominator
 
+    # ========================================================
+    # Normalize Score
+    # ========================================================
+
+    @staticmethod
+    def _normalize_score(
+        score: float,
+    ) -> float:
+        """
+        Clamp score to 0..100.
+        """
+
+        try:
+            score = float(score)
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return 50.0
+
+        return max(
+            0.0,
+            min(
+                100.0,
+                score,
+            ),
+        )
+
+    # ========================================================
+    # Extract Stochastic RSI Values
+    # ========================================================
+
+    @staticmethod
+    def _extract_stochastic_values(
+        stochastic_values: Any,
+    ) -> dict[str, float | None]:
+        """
+        Normalize different Stochastic RSI output formats.
+
+        Supported formats:
+
+        1. list[float | None]
+
+        Example:
+            [None, None, 40, 55, 70]
+
+        2. tuple/list containing K and D series
+
+        Example:
+            (
+                [None, 30, 40, 60],
+                [None, 35, 45, 55],
+            )
+
+        3. dict containing:
+            k / d
+
+        4. dict containing:
+            %k / %d
+
+        5. dict containing:
+            stoch_k / stoch_d
+
+        6. dict containing:
+            stochastic_k / stochastic_d
+        """
+
+        result: dict[str, float | None] = {
+            "k": None,
+            "d": None,
+        }
+
+        if stochastic_values is None:
+            return result
+
+        # ----------------------------------------------------
+        # Dictionary format
+        # ----------------------------------------------------
+
+        if isinstance(
+            stochastic_values,
+            dict,
+        ):
+
+            k_values = None
+            d_values = None
+
+            # Do not use "or" here because a valid numeric
+            # value such as 0 can otherwise be treated as false.
+            for key in (
+                "k",
+                "%k",
+                "stoch_k",
+                "stochastic_k",
+            ):
+                if key in stochastic_values:
+                    k_values = stochastic_values[key]
+                    break
+
+            for key in (
+                "d",
+                "%d",
+                "stoch_d",
+                "stochastic_d",
+            ):
+                if key in stochastic_values:
+                    d_values = stochastic_values[key]
+                    break
+
+            # ------------------------------------------------
+            # K
+            # ------------------------------------------------
+
+            if isinstance(
+                k_values,
+                (list, tuple),
+            ):
+                k_values = (
+                    IndicatorEngine._latest_value(
+                        k_values
+                    )
+                )
+
+            if k_values is not None:
+                try:
+                    result["k"] = float(k_values)
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+                    pass
+
+            # ------------------------------------------------
+            # D
+            # ------------------------------------------------
+
+            if isinstance(
+                d_values,
+                (list, tuple),
+            ):
+                d_values = (
+                    IndicatorEngine._latest_value(
+                        d_values
+                    )
+                )
+
+            if d_values is not None:
+                try:
+                    result["d"] = float(d_values)
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+                    pass
+
+            return result
+
+        # ----------------------------------------------------
+        # List / Tuple format
+        # ----------------------------------------------------
+
+        if isinstance(
+            stochastic_values,
+            (list, tuple),
+        ):
+
+            if not stochastic_values:
+                return result
+
+            # ------------------------------------------------
+            # Simple K series
+            #
+            # Example:
+            # [None, None, 40, 55, 70]
+            # ------------------------------------------------
+
+            if all(
+                value is None
+                or isinstance(
+                    value,
+                    (int, float),
+                )
+                for value in stochastic_values
+            ):
+
+                result["k"] = (
+                    IndicatorEngine._latest_value(
+                        stochastic_values
+                    )
+                )
+
+                return result
+
+            # ------------------------------------------------
+            # K / D series
+            #
+            # Example:
+            # (
+            #     [K values],
+            #     [D values],
+            # )
+            # ------------------------------------------------
+
+            if len(stochastic_values) >= 2:
+
+                k_values = stochastic_values[0]
+                d_values = stochastic_values[1]
+
+                result["k"] = (
+                    IndicatorEngine._latest_value(
+                        k_values
+                    )
+                )
+
+                result["d"] = (
+                    IndicatorEngine._latest_value(
+                        d_values
+                    )
+                )
+
+                return result
+
+        return result
+
+    # ========================================================
+    # Stochastic RSI Score
+    # ========================================================
+
+    @staticmethod
+    def _stochastic_score(
+        stochastic_values: dict[str, float | None],
+    ) -> tuple[
+        float,
+        str,
+        list[str],
+    ]:
+        """
+        Convert Stochastic RSI into:
+
+        score
+        state
+        reasons
+        """
+
+        k = stochastic_values.get("k")
+        d = stochastic_values.get("d")
+
+        reasons: list[str] = []
+
+        # ----------------------------------------------------
+        # No valid value
+        # ----------------------------------------------------
+
+        if k is None:
+            return (
+                50.0,
+                "unknown",
+                reasons,
+            )
+
+        # ----------------------------------------------------
+        # Extremely oversold
+        # ----------------------------------------------------
+
+        if k <= 10:
+
+            score = 65.0
+
+            state = "extremely_oversold"
+
+            reasons.append(
+                "Stochastic RSI is extremely oversold."
+            )
+
+        # ----------------------------------------------------
+        # Oversold
+        # ----------------------------------------------------
+
+        elif k < 20:
+
+            score = 60.0
+
+            state = "oversold"
+
+            reasons.append(
+                "Stochastic RSI indicates oversold conditions."
+            )
+
+        # ----------------------------------------------------
+        # Extremely overbought
+        # ----------------------------------------------------
+
+        elif k >= 90:
+
+            score = 35.0
+
+            state = "extremely_overbought"
+
+            reasons.append(
+                "Stochastic RSI is extremely overbought."
+            )
+
+        # ----------------------------------------------------
+        # Overbought
+        # ----------------------------------------------------
+
+        elif k > 80:
+
+            score = 40.0
+
+            state = "overbought"
+
+            reasons.append(
+                "Stochastic RSI indicates overbought conditions."
+            )
+
+        # ----------------------------------------------------
+        # Bullish
+        # ----------------------------------------------------
+
+        elif k >= 55:
+
+            score = 60.0
+
+            state = "bullish"
+
+            reasons.append(
+                "Stochastic RSI shows bullish momentum."
+            )
+
+        # ----------------------------------------------------
+        # Bearish
+        # ----------------------------------------------------
+
+        elif k <= 45:
+
+            score = 40.0
+
+            state = "bearish"
+
+            reasons.append(
+                "Stochastic RSI shows bearish momentum."
+            )
+
+        # ----------------------------------------------------
+        # Neutral
+        # ----------------------------------------------------
+
+        else:
+
+            score = 50.0
+
+            state = "neutral"
+
+        # ----------------------------------------------------
+        # K / D confirmation
+        # ----------------------------------------------------
+
+        if (
+            k is not None
+            and d is not None
+        ):
+
+            if k > d:
+
+                score += 3.0
+
+                reasons.append(
+                    "Stochastic RSI K is above D."
+                )
+
+            elif k < d:
+
+                score -= 3.0
+
+                reasons.append(
+                    "Stochastic RSI K is below D."
+                )
+
+        return (
+            IndicatorEngine._normalize_score(
+                score
+            ),
+            state,
+            reasons,
+        )
+
+
+    
+    # ==================================================
+    # Generic Latest Value
+    # ==================================================
+
+    @staticmethod
+    def _latest_value(
+        values: Any,
+    ) -> float | None:
+
+        if values is None:
+            return None
+
+        if isinstance(
+            values,
+            (int, float),
+        ):
+            return float(values)
+
+        if not isinstance(
+            values,
+            (list, tuple),
+        ):
+            return None
+
+        for value in reversed(values):
+
+            if value is None:
+                continue
+
+            try:
+                return float(value)
+
+            except (
+                TypeError,
+                ValueError,
+            ):
+                continue
+
+        return None
 
     # ==================================================
-    # Signal Analysis
+    # Safe Ratio
+    # ==================================================
+
+    @staticmethod
+    def _safe_ratio(
+        numerator: float,
+        denominator: float,
+    ) -> float:
+
+        if denominator == 0:
+            return 0.0
+
+        return numerator / denominator
+
+    # ==================================================
+    # Normalize Score
+    # ==================================================
+
+    @staticmethod
+    def _normalize_score(
+        score: float,
+    ) -> float:
+
+        try:
+            score = float(score)
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return 50.0
+
+        return max(
+            0.0,
+            min(
+                100.0,
+                score,
+            ),
+        )
+
+    # ==================================================
+    # Extract Stochastic RSI Values
+    # ==================================================
+
+    @staticmethod
+    def _extract_stochastic_values(
+        stochastic_values: Any,
+    ) -> dict[str, float | None]:
+        """
+        Normalize different Stochastic RSI output formats.
+
+        Supported formats:
+
+        1. list[float | None]
+
+        2. tuple/list containing
+           K and D series
+
+        3. dict containing:
+           k / d
+
+        4. dict containing:
+           %k / %d
+
+        5. dict containing:
+           stoch_k / stoch_d
+
+        6. dict containing:
+           stochastic_k / stochastic_d
+        """
+
+        result: dict[str, float | None] = {
+            "k": None,
+            "d": None,
+        }
+
+        if stochastic_values is None:
+            return result
+
+        # ==================================================
+        # Dictionary
+        # ==================================================
+
+        if isinstance(
+            stochastic_values,
+            dict,
+        ):
+
+            k_values = (
+                stochastic_values.get("k")
+                if "k" in stochastic_values
+                else stochastic_values.get("%k")
+                if "%k" in stochastic_values
+                else stochastic_values.get("stoch_k")
+                if "stoch_k" in stochastic_values
+                else stochastic_values.get("stochastic_k")
+            )
+
+            d_values = (
+                stochastic_values.get("d")
+                if "d" in stochastic_values
+                else stochastic_values.get("%d")
+                if "%d" in stochastic_values
+                else stochastic_values.get("stoch_d")
+                if "stoch_d" in stochastic_values
+                else stochastic_values.get("stochastic_d")
+            )
+
+            if isinstance(
+                k_values,
+                (list, tuple),
+            ):
+
+                k_values = (
+                    IndicatorEngine._latest_value(
+                        k_values
+                    )
+                )
+
+            if isinstance(
+                d_values,
+                (list, tuple),
+            ):
+
+                d_values = (
+                    IndicatorEngine._latest_value(
+                        d_values
+                    )
+                )
+
+            if k_values is not None:
+
+                try:
+                    result["k"] = float(
+                        k_values
+                    )
+
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+                    pass
+
+            if d_values is not None:
+
+                try:
+                    result["d"] = float(
+                        d_values
+                    )
+
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+                    pass
+
+            return result
+
+        # ==================================================
+        # List / Tuple
+        # ==================================================
+
+        if isinstance(
+            stochastic_values,
+            (list, tuple),
+        ):
+
+            if not stochastic_values:
+                return result
+
+            # ==================================================
+            # Simple single series
+            #
+            # Example:
+            #
+            # [
+            #     None,
+            #     None,
+            #     40.0,
+            #     55.0,
+            #     70.0,
+            # ]
+            # ==================================================
+
+            if all(
+                value is None
+                or isinstance(
+                    value,
+                    (int, float),
+                )
+                for value in stochastic_values
+            ):
+
+                result["k"] = (
+                    IndicatorEngine._latest_value(
+                        stochastic_values
+                    )
+                )
+
+                return result
+
+            # ==================================================
+            # Two-series format
+            #
+            # Example:
+            #
+            # (
+            #     [K values],
+            #     [D values],
+            # )
+            # ==================================================
+
+            if len(stochastic_values) >= 2:
+
+                k_values = (
+                    stochastic_values[0]
+                )
+
+                d_values = (
+                    stochastic_values[1]
+                )
+
+                result["k"] = (
+                    IndicatorEngine._latest_value(
+                        k_values
+                    )
+                )
+
+                result["d"] = (
+                    IndicatorEngine._latest_value(
+                        d_values
+                    )
+                )
+
+        return result
+
+    # ==================================================
+    # Stochastic RSI Score
+    # ==================================================
+
+    @staticmethod
+    def _stochastic_score(
+        stochastic_values: dict[
+            str,
+            float | None,
+        ],
+    ) -> tuple[
+        float,
+        str,
+        list[str],
+    ]:
+
+        k = stochastic_values.get(
+            "k"
+        )
+
+        d = stochastic_values.get(
+            "d"
+        )
+
+        reasons: list[str] = []
+
+        # ==================================================
+        # Unknown
+        # ==================================================
+
+        if k is None:
+
+            return (
+                50.0,
+                "unknown",
+                reasons,
+            )
+
+        # ==================================================
+        # Extremely Oversold
+        # ==================================================
+
+        if k <= 10:
+
+            score = 65.0
+
+            state = (
+                "extremely_oversold"
+            )
+
+            reasons.append(
+                "Stochastic RSI is extremely oversold."
+            )
+
+        # ==================================================
+        # Oversold
+        # ==================================================
+
+        elif k < 20:
+
+            score = 60.0
+
+            state = "oversold"
+
+            reasons.append(
+                "Stochastic RSI indicates oversold conditions."
+            )
+
+        # ==================================================
+        # Extremely Overbought
+        # ==================================================
+
+        elif k >= 90:
+
+            score = 35.0
+
+            state = (
+                "extremely_overbought"
+            )
+
+            reasons.append(
+                "Stochastic RSI is extremely overbought."
+            )
+
+        # ==================================================
+        # Overbought
+        # ==================================================
+
+        elif k > 80:
+
+            score = 40.0
+
+            state = "overbought"
+
+            reasons.append(
+                "Stochastic RSI indicates overbought conditions."
+            )
+
+        # ==================================================
+        # Bullish
+        # ==================================================
+
+        elif k >= 55:
+
+            score = 60.0
+
+            state = "bullish"
+
+            reasons.append(
+                "Stochastic RSI shows bullish momentum."
+            )
+
+        # ==================================================
+        # Bearish
+        # ==================================================
+
+        elif k <= 45:
+
+            score = 40.0
+
+            state = "bearish"
+
+            reasons.append(
+                "Stochastic RSI shows bearish momentum."
+            )
+
+        # ==================================================
+        # Neutral
+        # ==================================================
+
+        else:
+
+            score = 50.0
+
+            state = "neutral"
+
+        # ==================================================
+        # K / D Confirmation
+        # ==================================================
+
+        if (
+            d is not None
+            and k is not None
+        ):
+
+            if k > d:
+
+                score += 3.0
+
+                reasons.append(
+                    "Stochastic RSI K is above D."
+                )
+
+            elif k < d:
+
+                score -= 3.0
+
+                reasons.append(
+                    "Stochastic RSI K is below D."
+                )
+
+        return (
+            IndicatorEngine._normalize_score(
+                score
+            ),
+            state,
+            reasons,
+        )
+
+    # ==================================================
+    # Bollinger Band Analysis
+    # ==================================================
+
+    @staticmethod
+    def _bollinger_score(
+        price: float,
+        upper_values: Any,
+        middle_values: Any,
+        lower_values: Any,
+    ) -> tuple[
+        float,
+        str,
+        list[str],
+    ]:
+
+        upper = (
+            IndicatorEngine._latest_value(
+                upper_values
+            )
+        )
+
+        middle = (
+            IndicatorEngine._latest_value(
+                middle_values
+            )
+        )
+
+        lower = (
+            IndicatorEngine._latest_value(
+                lower_values
+            )
+        )
+
+        reasons: list[str] = []
+
+        # ==================================================
+        # Missing Data
+        # ==================================================
+
+        if (
+            upper is None
+            or middle is None
+            or lower is None
+        ):
+
+            return (
+                50.0,
+                "unknown",
+                reasons,
+            )
+
+        # ==================================================
+        # Invalid Bands
+        # ==================================================
+
+        if upper <= lower:
+
+            return (
+                50.0,
+                "unknown",
+                reasons,
+            )
+
+        # ==================================================
+        # Below Lower Band
+        # ==================================================
+
+        if price < lower:
+
+            return (
+                65.0,
+                "below_lower_band",
+                [
+                    "Price is below the lower Bollinger Band."
+                ],
+            )
+
+        # ==================================================
+        # Above Upper Band
+        # ==================================================
+
+        if price > upper:
+
+            return (
+                35.0,
+                "above_upper_band",
+                [
+                    "Price is above the upper Bollinger Band."
+                ],
+            )
+
+        # ==================================================
+        # Below Middle
+        # ==================================================
+
+        if price < middle:
+
+            reasons.append(
+                "Price is below the Bollinger middle band."
+            )
+
+            return (
+                45.0,
+                "below_middle",
+                reasons,
+            )
+
+        # ==================================================
+        # Above Middle
+        # ==================================================
+
+        if price > middle:
+
+            reasons.append(
+                "Price is above the Bollinger middle band."
+            )
+
+            return (
+                55.0,
+                "above_middle",
+                reasons,
+            )
+
+        # ==================================================
+        # Exactly Middle
+        # ==================================================
+
+        return (
+            50.0,
+            "middle",
+            reasons,
+        )
+
+    # ==================================================
+    # Main Signal Analysis
     # ==================================================
 
     def _analyze_signals(
         self,
         closes: list[float],
-        rsi_values: list[float | None],
-        macd_values: dict[str, list[float | None]],
-        ema_values: list[float | None],
+        rsi_values: list[
+            float | None
+        ],
+        macd_values: dict[
+            str,
+            list[float | None],
+        ],
+        ema_values: list[
+            float | None
+        ],
         stochastic_values: Any,
         upper_values: Any,
         middle_values: Any,
         lower_values: Any,
     ) -> dict[str, Any]:
-        """
-        Converts raw indicators into
-        structured trading information.
-        """
 
         signals: dict[str, Any] = {}
 
@@ -373,12 +1289,12 @@ class IndicatorEngine:
 
         score_components: list[float] = []
 
-
         # ==================================================
         # Current Price
         # ==================================================
 
         if not closes:
+
             return {
                 "signals": {},
                 "score": 50.0,
@@ -393,31 +1309,24 @@ class IndicatorEngine:
             closes[-1]
         )
 
-
         # ==================================================
         # RSI
         # ==================================================
 
-        latest_rsi = self._latest_value(
-            rsi_values
+        latest_rsi = (
+            self._latest_value(
+                rsi_values
+            )
         )
 
         signals["rsi"] = {
-
             "value": latest_rsi,
-
             "state": "unknown",
-
         }
-
 
         if latest_rsi is None:
 
             rsi_score = 50.0
-
-            signals["rsi"]["state"] = (
-                "unknown"
-            )
 
         elif latest_rsi <= 20:
 
@@ -499,36 +1408,28 @@ class IndicatorEngine:
                 "neutral"
             )
 
-
         score_components.append(
             rsi_score
         )
-
 
         # ==================================================
         # EMA Trend
         # ==================================================
 
-        latest_ema = self._latest_value(
-            ema_values
+        latest_ema = (
+            self._latest_value(
+                ema_values
+            )
         )
 
         signals["ema"] = {
-
             "value": latest_ema,
-
             "state": "unknown",
-
         }
-
 
         if latest_ema is None:
 
             ema_score = 50.0
-
-            signals["ema"]["state"] = (
-                "unknown"
-            )
 
         elif latest_price > latest_ema:
 
@@ -582,11 +1483,11 @@ class IndicatorEngine:
                 "neutral"
             )
 
-
         score_components.append(
-            ema_score
+            self._normalize_score(
+                ema_score
+            )
         )
-
 
         # ==================================================
         # MACD
@@ -628,13 +1529,16 @@ class IndicatorEngine:
             else []
         )
 
-
-        latest_macd = self._latest_value(
-            macd_line
+        latest_macd = (
+            self._latest_value(
+                macd_line
+            )
         )
 
-        latest_signal = self._latest_value(
-            signal_line
+        latest_signal = (
+            self._latest_value(
+                signal_line
+            )
         )
 
         latest_histogram = (
@@ -643,19 +1547,12 @@ class IndicatorEngine:
             )
         )
 
-
         signals["macd"] = {
-
             "macd": latest_macd,
-
             "signal": latest_signal,
-
             "histogram": latest_histogram,
-
             "state": "unknown",
-
         }
-
 
         if (
             latest_macd is None
@@ -663,10 +1560,6 @@ class IndicatorEngine:
         ):
 
             macd_score = 50.0
-
-            signals["macd"]["state"] = (
-                "unknown"
-            )
 
         elif latest_macd > latest_signal:
 
@@ -714,15 +1607,15 @@ class IndicatorEngine:
                 "neutral"
             )
 
-
-        macd_score = self._normalize_score(
-            macd_score
+        macd_score = (
+            self._normalize_score(
+                macd_score
+            )
         )
 
         score_components.append(
             macd_score
         )
-
 
         # ==================================================
         # Stochastic RSI
@@ -734,244 +1627,194 @@ class IndicatorEngine:
             )
         )
 
-        stoch_k = stochastic_latest[
-            "k"
-        ]
-
-        stoch_d = stochastic_latest[
-            "d"
-        ]
-
+        (
+            stochastic_score,
+            stochastic_state,
+            stochastic_reasons,
+        ) = self._stochastic_score(
+            stochastic_latest
+        )
 
         signals["stochastic_rsi"] = {
-
-            "k": stoch_k,
-
-            "d": stoch_d,
-
-            "state": "unknown",
-
+            "k": stochastic_latest.get(
+                "k"
+            ),
+            "d": stochastic_latest.get(
+                "d"
+            ),
+            "state": stochastic_state,
         }
 
-
-        if stoch_k is None:
-
-            stochastic_score = 50.0
-
-            signals[
-                "stochastic_rsi"
-            ]["state"] = "unknown"
-
-        elif stoch_k <= 20:
-
-            stochastic_score = 60.0
-
-            signals[
-                "stochastic_rsi"
-            ]["state"] = "oversold"
-
-            reasons.append(
-                "Stochastic RSI is oversold."
-            )
-
-        elif stoch_k >= 80:
-
-            stochastic_score = 40.0
-
-            signals[
-                "stochastic_rsi"
-            ]["state"] = "overbought"
-
-            reasons.append(
-                "Stochastic RSI is overbought."
-            )
-
-        elif (
-            stoch_d is not None
-            and stoch_k > stoch_d
-        ):
-
-            stochastic_score = 57.0
-
-            signals[
-                "stochastic_rsi"
-            ]["state"] = "bullish"
-
-        elif (
-            stoch_d is not None
-            and stoch_k < stoch_d
-        ):
-
-            stochastic_score = 43.0
-
-            signals[
-                "stochastic_rsi"
-            ]["state"] = "bearish"
-
-        else:
-
-            stochastic_score = 50.0
-
-            signals[
-                "stochastic_rsi"
-            ]["state"] = "neutral"
-
+        reasons.extend(
+            stochastic_reasons
+        )
 
         score_components.append(
             stochastic_score
         )
 
 
+        
+        # ==================================================
+        # Bollinger Bands
+        # ==================================================
 
-        # -------------------------
-        # Final indicator summary
-        # -------------------------
-
-        bullish = 0
-        bearish = 0
-        neutral = 0
-
-        # EMA trend
-        trend = signals.get(
-            "trend",
-            "sideways"
+        (
+            bollinger_score,
+            bollinger_state,
+            bollinger_reasons,
+        ) = self._bollinger_score(
+            price=latest_price,
+            upper_values=upper_values,
+            middle_values=middle_values,
+            lower_values=lower_values,
         )
 
-        if trend == "bullish":
-            bullish += 1
+        signals["bollinger"] = {
+            "state": bollinger_state,
+            "upper": self._latest_value(
+                upper_values
+            ),
+            "middle": self._latest_value(
+                middle_values
+            ),
+            "lower": self._latest_value(
+                lower_values
+            ),
+        }
 
-        elif trend == "bearish":
-            bearish += 1
-
-        else:
-            neutral += 1
-
-        # MACD
-        macd_signal = signals.get(
-            "macd",
-            "neutral"
+        reasons.extend(
+            bollinger_reasons
         )
 
-        if macd_signal == "bullish":
-            bullish += 1
-
-        elif macd_signal == "bearish":
-            bearish += 1
-
-        else:
-            neutral += 1
-
-        # RSI
-        momentum = signals.get(
-            "momentum",
-            "neutral"
+        score_components.append(
+            bollinger_score
         )
 
-        if momentum == "oversold":
-            bullish += 1
+        # ==================================================
+        # Standard Deviation
+        # ==================================================
+        #
+        # Standard deviation is a volatility
+        # measurement.
+        #
+        # It does not directly contribute to
+        # bullish/bearish direction.
+        #
+        # It is still calculated and returned
+        # by the main indicator engine.
+        # ==================================================
 
-        elif momentum == "overbought":
-            bearish += 1
+        # ==================================================
+        # Final Indicator Score
+        # ==================================================
 
-        else:
-            neutral += 1
+        if not score_components:
 
-        # -------------------------
-        # Indicator bias
-        # -------------------------
-
-        if bullish > bearish:
-            bias = "bullish"
-
-        elif bearish > bullish:
-            bias = "bearish"
-
-        else:
-            bias = "neutral"
-
-        # -------------------------
-        # Indicator score
-        # -------------------------
-
-        total_votes = (
-            bullish
-            + bearish
-            + neutral
-        )
-
-        if total_votes <= 0:
-            score = 50.0
+            final_score = 50.0
 
         else:
-            score = (
-                50.0
-                +
-                (
-                    (
-                        bullish
-                        -
-                        bearish
-                    )
-                    /
-                    total_votes
+
+            final_score = (
+                sum(
+                    score_components
                 )
-                * 50.0
+                /
+                len(
+                    score_components
+                )
             )
 
-        score = max(
+        final_score = (
+            self._normalize_score(
+                final_score
+            )
+        )
+
+        # ==================================================
+        # Direction
+        # ==================================================
+
+        if final_score >= 60.0:
+
+            direction = "bullish"
+
+        elif final_score <= 40.0:
+
+            direction = "bearish"
+
+        else:
+
+            direction = "neutral"
+
+        # ==================================================
+        # Confidence
+        # ==================================================
+
+        confidence = (
+            abs(
+                final_score - 50.0
+            )
+            /
+            50.0
+        )
+
+        confidence = max(
             0.0,
             min(
-                100.0,
-                score
-            )
+                1.0,
+                confidence,
+            ),
         )
 
-        # -------------------------
-        # Confidence
-        # -------------------------
+        # ==================================================
+        # Signal Summary
+        # ==================================================
 
-        if total_votes <= 0:
-            confidence = 0.0
+        signals["summary"] = {
+            "score": round(
+                final_score,
+                2,
+            ),
+            "direction": direction,
+            "confidence": round(
+                confidence,
+                3,
+            ),
+        }
 
-        else:
-            dominant_votes = max(
-                bullish,
-                bearish,
-                neutral
-            )
+        # ==================================================
+        # Remove Duplicate Reasons
+        # ==================================================
 
-            confidence = (
-                dominant_votes
-                /
-                total_votes
-            )
+        unique_reasons: list[str] = []
 
-        # -------------------------
-        # Final summary
-        # -------------------------
+        for reason in reasons:
 
-        signals["bias"] = bias
+            if reason not in unique_reasons:
 
-        signals["score"] = round(
-            score,
-            2
-        )
+                unique_reasons.append(
+                    reason
+                )
 
-        signals["confidence"] = round(
-            confidence,
-            3
-        )
+        # ==================================================
+        # Final Result
+        # ==================================================
 
-        signals["bullish_votes"] = (
-            bullish
-        )
+        return {
+            "signals": signals,
 
-        signals["bearish_votes"] = (
-            bearish
-        )
+            "score": round(
+                final_score,
+                2,
+            ),
 
-        signals["neutral_votes"] = (
-            neutral
-        )
+            "direction": direction,
 
-        return signals
+            "confidence": round(
+                confidence,
+                3,
+            ),
+
+            "reasons": unique_reasons,
+        }
