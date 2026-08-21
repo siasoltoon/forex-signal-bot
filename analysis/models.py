@@ -60,7 +60,7 @@ class AnalysisScore:
 )
 class AnalysisResult:
     """
-    Internal full analysis state.
+    Complete technical analysis state.
     """
 
     trend: str
@@ -117,14 +117,10 @@ class AnalysisResult:
 
 
     # =========================
-    # Smart Money
+    # Smart Money Concepts
     # =========================
 
     smart_money_score: float = 0.0
-
-    liquidity_score: float = 0.0
-
-
 
     smc_bias: str = "neutral"
 
@@ -136,15 +132,17 @@ class AnalysisResult:
 
     fair_value_gap: bool = False
 
-    premium_discount: str = "neutral"
+    premium_discount: str = "none"
 
 
 
     # =========================
-    # AI Expansion
+    # Future AI
     # =========================
 
     ai_score: float = 0.0
+
+    liquidity_score: float = 0.0
 
 
 
@@ -167,16 +165,21 @@ class AnalysisResult:
 )
 class AnalysisReport:
     """
-    Final user-facing analysis report.
+    Final user-facing report.
     """
+
 
     trend: str
 
+
     structure: str
+
 
     score: float
 
+
     signal: str
+
 
     confidence: float
 
@@ -188,15 +191,20 @@ class AnalysisReport:
 
     smc_bias: str = "neutral"
 
+
     smc_structure: str = "none"
+
 
     order_block: str = "none"
 
+
     liquidity: str = "none"
+
 
     fair_value_gap: bool = False
 
-    premium_discount: str = "neutral"
+
+    premium_discount: str = "none"
 
 
 
@@ -209,6 +217,9 @@ class AnalysisReport:
     )
 
 
+    # =========================
+    # Indicators
+    # =========================
 
     indicators: dict[str, Any] = field(
         default_factory=dict
