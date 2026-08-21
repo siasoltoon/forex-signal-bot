@@ -29,21 +29,29 @@ from analysis.momentum_engine import (
 )
 
 
+from analysis.price_action_engine import (
+    PriceActionEngine,
+)
+
+
 
 class FullAnalysisEngine:
     """
-    Combined analysis engine.
+    Complete analysis pipeline.
 
     Combines:
+
+    - Market Structure
     - Indicators
-    - Market structure
-    - Momentum analysis
+    - Momentum
+    - Price Action
     - Scoring
     """
 
 
 
     def __init__(self) -> None:
+
 
         self.structure_detector = (
             MarketStructureDetector()
@@ -60,6 +68,11 @@ class FullAnalysisEngine:
         )
 
 
+        self.price_action_engine = (
+            PriceActionEngine()
+        )
+
+
         self.scorer = AnalysisScorer()
 
 
@@ -68,6 +81,7 @@ class FullAnalysisEngine:
         self,
         closes: list[float],
     ) -> AnalysisReport:
+
 
 
         # =========================
@@ -107,25 +121,70 @@ class FullAnalysisEngine:
 
 
         # =========================
-        # Analysis Result
+        # Price Action
+        # =========================
+
+        price_action_result = (
+            self.price_action_engine.analyze(
+                closes
+            )
+        )
+
+
+
+        # =========================
+        # Build Analysis Result
         # =========================
 
         analysis_result = AnalysisResult(
 
             trend=structure.trend,
 
+
             momentum=momentum_result.state,
+
 
             indicators=indicator_snapshot.values,
 
+
             supply_demand=None,
 
+
+            trend_score=0.0,
+
+
+            momentum_score=(
+                momentum_result.score
+            ),
+
+
+            structure_score=(
+                20
+                if structure.bos
+                else 0
+            ),
+
+
+            price_action_score=(
+                price_action_result.score
+            ),
+
+
+            reasons=(
+
+                momentum_result.reasons
+
+                +
+
+                price_action_result.reasons
+
+            ),
         )
 
 
 
         # =========================
-        # Score
+        # Final Score
         # =========================
 
         score = (
@@ -137,27 +196,37 @@ class FullAnalysisEngine:
 
 
         structure_name = (
+
             "BOS"
+
             if structure.bos
+
             else "NORMAL"
+
         )
 
 
-
-        # =========================
-        # Final Report
-        # =========================
 
         return AnalysisReport(
 
             trend=structure.trend,
 
+
             structure=structure_name,
+
 
             score=score.score,
 
+
             signal=score.direction,
 
+
             confidence=score.confidence,
+
+
+            reasons=analysis_result.reasons,
+
+
+            indicators=indicator_snapshot.values,
 
         )
