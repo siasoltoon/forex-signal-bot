@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -13,8 +13,8 @@ class SignalComponent:
     Single scoring component.
 
     Example:
-    Trend score = +30
-    Momentum score = -10
+    Trend = +30
+    Momentum = +20
     """
 
     name: str
@@ -25,14 +25,12 @@ class SignalComponent:
 
 
 
-
-
 @dataclass(
     frozen=True
 )
 class AnalysisScore:
     """
-    Final analysis score result.
+    Final scoring result.
     """
 
     score: float
@@ -41,25 +39,9 @@ class AnalysisScore:
 
     confidence: float
 
-
-
-
-
-@dataclass(
-    frozen=True
-)
-class AnalysisReport:
-    """
-    Complete analysis report.
-    """
-
-    signal: str
-
-    score: AnalysisScore
-
-    components: list[SignalComponent]
-
-
+    components: list[SignalComponent] = field(
+        default_factory=list
+    )
 
 
 
@@ -68,21 +50,84 @@ class AnalysisReport:
 )
 class AnalysisResult:
     """
-    Technical analysis result.
+    Complete technical analysis state.
+
+    Contains outputs from:
+    - Market structure
+    - Indicators
+    - Momentum
+    - Supply/Demand
+    - Future price action engines
     """
+
 
     trend: str
 
+
     momentum: str
 
+
     indicators: dict[str, Any]
+
 
     supply_demand: Any = None
 
 
-    # New fields
-    # Used by advanced engines
+
+    # Advanced scoring fields
+
+    trend_score: float = 0.0
+
 
     momentum_score: float = 0.0
 
-    momentum_reasons: list[str] | None = None
+
+    structure_score: float = 0.0
+
+
+    volatility_score: float = 0.0
+
+
+
+    # Explanation layer
+
+    reasons: list[str] = field(
+        default_factory=list
+    )
+
+
+
+@dataclass(
+    frozen=True
+)
+class AnalysisReport:
+    """
+    Final user-facing analysis report.
+    """
+
+
+    trend: str
+
+
+    structure: str
+
+
+    score: float
+
+
+    signal: str
+
+
+    confidence: float
+
+
+
+    # Extended information
+
+    reasons: list[str] = field(
+        default_factory=list
+    )
+
+    indicators: dict[str, Any] = field(
+        default_factory=dict
+    )
