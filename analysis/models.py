@@ -50,20 +50,24 @@ class AnalysisResult:
     """
     Complete technical analysis state.
 
-    Contains:
-    - Market structure
-    - Candles
+    Includes:
+
+    - Market Structure
+    - OHLC Candles
     - Indicators
     - Momentum
     - Price Action
-    - Supply/Demand
-    - Future AI analysis engines
+    - Supply / Demand
+    - Candlestick Patterns
+    - Elliott Wave
+    - Harmonic Patterns
+    - Future AI Models
     """
 
 
 
     # =====================
-    # Core analysis
+    # Core Analysis
     # =====================
 
     trend: str
@@ -75,7 +79,6 @@ class AnalysisResult:
     indicators: dict[str, Any]
 
 
-    # Standard OHLC candles
 
     candles: list[Candle] = field(
         default_factory=list
@@ -92,7 +95,7 @@ class AnalysisResult:
 
 
     # =====================
-    # Advanced scores
+    # Scoring Engines
     # =====================
 
     trend_score: float = 0.0
@@ -112,7 +115,7 @@ class AnalysisResult:
 
 
     # =====================
-    # Future AI Engines
+    # Pattern Engines
     # =====================
 
     candlestick_score: float = 0.0
@@ -129,7 +132,7 @@ class AnalysisResult:
 
 
     # =====================
-    # Explanation layer
+    # Explanation Layer
     # =====================
 
     reasons: list[str] = field(
@@ -143,7 +146,7 @@ class AnalysisResult:
 )
 class AnalysisReport:
     """
-    Final user-facing report.
+    Final user-facing analysis report.
     """
 
     trend: str
