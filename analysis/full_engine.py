@@ -26,6 +26,11 @@ from analysis.scoring import (
 )
 
 
+from analysis.decision_engine import (
+    DecisionEngine,
+)
+
+
 from analysis.indicator_engine import (
     IndicatorEngine,
 )
@@ -91,11 +96,12 @@ class FullAnalysisEngine:
     - Candlestick
     - Elliott Wave
     - Harmonic Patterns
-    - Al Brooks Price Action
+    - Al Brooks
     - Wyckoff
     - Smart Money Concepts
-    - Scoring
+    - Decision Engine
     """
+
 
 
     def __init__(self) -> None:
@@ -156,7 +162,12 @@ class FullAnalysisEngine:
         )
 
 
+        # Legacy scorer
         self.scorer = AnalysisScorer()
+
+
+        # New decision layer
+        self.decision_engine = DecisionEngine()
 
 
 
@@ -173,7 +184,7 @@ class FullAnalysisEngine:
             )
 
 
-
+        
         # =========================
         # Normalize Input
         # =========================
@@ -182,7 +193,6 @@ class FullAnalysisEngine:
             candles[0],
             Candle
         ):
-
 
             candle_data = candles
 
@@ -197,7 +207,6 @@ class FullAnalysisEngine:
 
 
         else:
-
 
             closes = [
 
@@ -276,8 +285,9 @@ class FullAnalysisEngine:
         )
 
 
+
         # =========================
-        # Advanced Pattern Engines
+        # Advanced Engines
         # =========================
 
         elliott_result = (
@@ -315,13 +325,12 @@ class FullAnalysisEngine:
         )
 
 
-        
+
         # =========================
         # Build Analysis Result
         # =========================
 
         analysis_result = AnalysisResult(
-
 
             trend=structure.trend,
 
@@ -335,25 +344,17 @@ class FullAnalysisEngine:
             candles=candle_data,
 
 
-
             supply_demand=(
-
                 supply_demand_result.zone
-
             ),
-
 
 
             trend_score=0.0,
 
 
-
             momentum_score=(
-
                 momentum_result.score
-
             ),
-
 
 
             structure_score=(
@@ -367,113 +368,72 @@ class FullAnalysisEngine:
             ),
 
 
-
             volatility_score=0.0,
 
 
-
             price_action_score=(
-
                 price_action_result.score
-
             ),
-
 
 
             candlestick_score=(
-
                 candlestick_result.score
-
             ),
-
 
 
             elliott_score=(
-
                 elliott_result.score
-
             ),
-
 
 
             harmonic_score=(
-
                 harmonic_result.score
-
             ),
-
 
 
             brooks_score=(
-
                 brooks_result.score
-
             ),
-
 
 
             wyckoff_score=(
-
                 wyckoff_result.score
-
             ),
-
 
 
             smart_money_score=(
-
                 smc_result.score
-
             ),
-
 
 
             smc_bias=(
-
                 smc_result.bias
-
             ),
-
 
 
             smc_structure=(
-
                 smc_result.structure
-
             ),
-
 
 
             order_block=(
-
                 smc_result.order_block
-
             ),
-
 
 
             liquidity=(
-
                 smc_result.liquidity
-
             ),
-
 
 
             fair_value_gap=(
-
                 smc_result.fair_value_gap
-
             ),
-
 
 
             premium_discount=(
-
                 smc_result.premium_discount
-
             ),
-
 
 
             reasons=(
@@ -511,11 +471,11 @@ class FullAnalysisEngine:
 
 
         # =========================
-        # Final Score
+        # New Decision Layer
         # =========================
 
-        score = (
-            self.scorer.score(
+        decision = (
+            self.decision_engine.decide(
                 analysis_result
             )
         )
@@ -540,75 +500,67 @@ class FullAnalysisEngine:
 
         return AnalysisReport(
 
-
             trend=structure.trend,
 
 
             structure=structure_name,
 
 
-            score=score.score,
+            score=decision.score,
 
 
-            signal=score.direction,
+            signal=decision.signal,
 
 
-            confidence=score.confidence,
+            confidence=decision.confidence,
 
 
 
             smc_bias=(
-
                 smc_result.bias
-
             ),
-
 
 
             smc_structure=(
-
                 smc_result.structure
-
             ),
-
 
 
             order_block=(
-
                 smc_result.order_block
-
             ),
-
 
 
             liquidity=(
-
                 smc_result.liquidity
-
             ),
-
 
 
             fair_value_gap=(
-
                 smc_result.fair_value_gap
-
             ),
-
 
 
             premium_discount=(
-
                 smc_result.premium_discount
+            ),
+
+
+
+            reasons=(
+
+                analysis_result.reasons
+
+                +
+
+                decision.reasons
 
             ),
 
 
 
-            reasons=analysis_result.reasons,
-
-
-            indicators=indicator_snapshot.values,
-
+            indicators=(
+                indicator_snapshot.values
+            ),
 
         )
