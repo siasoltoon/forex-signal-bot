@@ -7,6 +7,10 @@ from analysis.candle import Candle
 
 
 
+# ==================================================
+# Signal Component
+# ==================================================
+
 @dataclass(
     frozen=True
 )
@@ -23,6 +27,9 @@ class SignalComponent:
 
 
 
+# ==================================================
+# Analysis Score
+# ==================================================
 
 @dataclass(
     frozen=True
@@ -44,6 +51,9 @@ class AnalysisScore:
 
 
 
+# ==================================================
+# Complete Analysis Result
+# ==================================================
 
 @dataclass(
     frozen=True
@@ -55,15 +65,15 @@ class AnalysisResult:
     Includes:
 
     - Market Structure
-    - OHLC Candles
     - Indicators
     - Momentum
     - Price Action
     - Supply / Demand
-    - Candlestick Patterns
+    - Candlestick
     - Elliott Wave
     - Harmonic Patterns
-    - Brooks Price Action
+    - Al Brooks Price Action
+    - Wyckoff
     - Future AI Models
     """
 
@@ -98,7 +108,7 @@ class AnalysisResult:
 
 
     # =====================
-    # Scoring Engines
+    # Main Scores
     # =====================
 
     trend_score: float = 0.0
@@ -130,10 +140,24 @@ class AnalysisResult:
     harmonic_score: float = 0.0
 
 
+    brooks_score: float = 0.0
+
+
     wyckoff_score: float = 0.0
 
 
-    brooks_score: float = 0.0
+
+    # =====================
+    # Future Expansion
+    # =====================
+
+    ai_score: float = 0.0
+
+
+    smart_money_score: float = 0.0
+
+
+    liquidity_score: float = 0.0
 
 
 
@@ -147,6 +171,9 @@ class AnalysisResult:
 
 
 
+# ==================================================
+# User Report
+# ==================================================
 
 @dataclass(
     frozen=True
@@ -154,7 +181,19 @@ class AnalysisResult:
 class AnalysisReport:
     """
     Final user-facing analysis report.
+
+    Contains:
+
+    - Trend
+    - Structure
+    - Score
+    - Signal
+    - Confidence
+    - Reasons
+    - Indicators
     """
+
+
 
     trend: str
 
@@ -175,6 +214,7 @@ class AnalysisReport:
     reasons: list[str] = field(
         default_factory=list
     )
+
 
 
     indicators: dict[str, Any] = field(
