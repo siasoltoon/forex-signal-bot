@@ -9,6 +9,12 @@ from analysis.indicators.momentum import (
     stochastic_rsi,
 )
 
+from analysis.indicators.volatility import (
+    atr,
+    bollinger_bands,
+    standard_deviation,
+)
+
 
 __all__ = [
     "sma",
@@ -16,4 +22,7 @@ __all__ = [
     "rsi",
     "macd",
     "stochastic_rsi",
+    "atr",
+    "bollinger_bands",
+    "standard_deviation",
 ]
