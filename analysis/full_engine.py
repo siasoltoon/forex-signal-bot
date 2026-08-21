@@ -47,9 +47,10 @@ class FullAnalysisEngine:
     """
     Complete analysis pipeline.
 
-    Combines:
+    Supports:
 
-    - Candles
+    - OHLC Candles
+    - Legacy close prices
     - Market Structure
     - Indicators
     - Momentum
@@ -94,18 +95,62 @@ class FullAnalysisEngine:
 
     def analyze(
         self,
-        candles: list[Candle],
+        candles: list[Candle] | list[float],
     ) -> AnalysisReport:
 
 
+
         # =========================
-        # Extract close prices
+        # Normalize Input
         # =========================
 
-        closes = [
-            candle.close
-            for candle in candles
-        ]
+        if not candles:
+
+            raise ValueError(
+                "Input candles cannot be empty."
+            )
+
+
+
+        if isinstance(
+            candles[0],
+            Candle
+        ):
+
+            candle_data = candles
+
+
+
+            closes = [
+                candle.close
+                for candle in candle_data
+            ]
+
+
+
+        else:
+
+
+            closes = [
+                float(price)
+                for price in candles
+            ]
+
+
+
+            candle_data = [
+
+                Candle(
+                    open=price,
+                    high=price,
+                    low=price,
+                    close=price,
+                    volume=0.0,
+                )
+
+                for price in closes
+
+            ]
 
 
 
@@ -184,7 +229,7 @@ class FullAnalysisEngine:
             indicators=indicator_snapshot.values,
 
 
-            candles=candles,
+            candles=candle_data,
 
 
             supply_demand=(
