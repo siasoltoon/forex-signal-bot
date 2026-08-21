@@ -47,6 +47,11 @@ from analysis.candlestick_engine import (
 )
 
 
+from analysis.elliott_engine import (
+    ElliottEngine,
+)
+
+
 
 class FullAnalysisEngine:
     """
@@ -60,6 +65,7 @@ class FullAnalysisEngine:
     - Price Action
     - Supply Demand
     - Candlestick
+    - Elliott Wave
     - Scoring
     """
 
@@ -95,6 +101,11 @@ class FullAnalysisEngine:
 
         self.candlestick_engine = (
             CandlestickEngine()
+        )
+
+
+        self.elliott_engine = (
+            ElliottEngine()
         )
 
 
@@ -246,6 +257,18 @@ class FullAnalysisEngine:
 
 
         # =========================
+        # Elliott Wave
+        # =========================
+
+        elliott_result = (
+            self.elliott_engine.analyze(
+                closes
+            )
+        )
+
+
+
+        # =========================
         # Build Analysis Result
         # =========================
 
@@ -309,6 +332,14 @@ class FullAnalysisEngine:
 
 
 
+            elliott_score=(
+
+                elliott_result.score
+
+            ),
+
+
+
             reasons=(
 
                 momentum_result.reasons
@@ -324,6 +355,8 @@ class FullAnalysisEngine:
                     supply_demand_result.reason,
 
                     candlestick_result.reason,
+
+                    elliott_result.reason,
 
                 ]
 
