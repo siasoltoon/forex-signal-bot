@@ -86,7 +86,7 @@ class FullAnalysisEngine:
     """
     Complete analysis pipeline.
 
-    Engines:
+    Modules:
 
     - Market Structure
     - Indicators
@@ -95,7 +95,7 @@ class FullAnalysisEngine:
     - Supply Demand
     - Candlestick
     - Elliott Wave
-    - Harmonic Patterns
+    - Harmonic
     - Al Brooks
     - Wyckoff
     - Smart Money Concepts
@@ -164,21 +164,48 @@ class FullAnalysisEngine:
 
 
 
-        # Decision Layer
-
         self.decision_engine = (
             DecisionEngine()
         )
 
-
-
-        # Confidence Layer
 
         self.confidence_engine = (
             ConfidenceEngine()
         )
 
 
+
+    # ==================================================
+    # Safe Engine Runner
+    # ==================================================
+
+    @staticmethod
+    def _safe_run(
+        engine,
+        method_name: str,
+        data,
+        default=None,
+    ):
+
+        try:
+
+            method = getattr(
+                engine,
+                method_name
+            )
+
+            return method(data)
+
+
+        except Exception:
+
+            return default
+
+
+
+    # ==================================================
+    # Main Analysis
+    # ==================================================
 
     def analyze(
         self,
@@ -194,14 +221,15 @@ class FullAnalysisEngine:
 
 
 
-        # =========================
+        # ==================================================
         # Normalize Input
-        # =========================
+        # ==================================================
 
         if isinstance(
             candles[0],
             Candle
         ):
+
 
             candle_data = candles
 
@@ -249,9 +277,9 @@ class FullAnalysisEngine:
 
 
 
-        # =========================
+        # ==================================================
         # Core Engines
-        # =========================
+        # ==================================================
 
 
         structure = (
@@ -297,9 +325,9 @@ class FullAnalysisEngine:
 
 
 
-        # =========================
+        # ==================================================
         # Advanced Engines
-        # =========================
+        # ==================================================
 
 
         elliott_result = (
@@ -337,11 +365,10 @@ class FullAnalysisEngine:
         )
 
 
-
-        # =========================
+        
+        # ==================================================
         # Build Analysis Result
-        # =========================
-
+        # ==================================================
 
         analysis_result = AnalysisResult(
 
@@ -358,8 +385,11 @@ class FullAnalysisEngine:
 
 
             supply_demand=(
+
                 supply_demand_result.zone
+
             ),
+
 
 
             trend_score=(
@@ -377,9 +407,13 @@ class FullAnalysisEngine:
             ),
 
 
+
             momentum_score=(
+
                 momentum_result.score
+
             ),
+
 
 
             structure_score=(
@@ -393,72 +427,113 @@ class FullAnalysisEngine:
             ),
 
 
+
             volatility_score=0.0,
 
 
+
             price_action_score=(
+
                 price_action_result.score
+
             ),
+
 
 
             candlestick_score=(
+
                 candlestick_result.score
+
             ),
+
 
 
             elliott_score=(
+
                 elliott_result.score
+
             ),
+
 
 
             harmonic_score=(
+
                 harmonic_result.score
+
             ),
+
 
 
             brooks_score=(
+
                 brooks_result.score
+
             ),
+
 
 
             wyckoff_score=(
+
                 wyckoff_result.score
+
             ),
+
 
 
             smart_money_score=(
+
                 smc_result.score
+
             ),
+
 
 
             smc_bias=(
+
                 smc_result.bias
+
             ),
+
 
 
             smc_structure=(
+
                 smc_result.structure
+
             ),
+
 
 
             order_block=(
+
                 smc_result.order_block
+
             ),
+
 
 
             liquidity=(
+
                 smc_result.liquidity
+
             ),
+
 
 
             fair_value_gap=(
+
                 smc_result.fair_value_gap
+
             ),
+
 
 
             premium_discount=(
+
                 smc_result.premium_discount
+
             ),
+
 
 
             reasons=(
@@ -472,13 +547,21 @@ class FullAnalysisEngine:
                 +
 
                 [
+
                     supply_demand_result.reason,
+
                     candlestick_result.reason,
+
                     elliott_result.reason,
+
                     harmonic_result.reason,
+
                     brooks_result.reason,
+
                     wyckoff_result.reason,
+
                     smc_result.reason,
+
                 ]
 
             ),
@@ -486,11 +569,10 @@ class FullAnalysisEngine:
         )
 
 
-        
-        # =========================
-        # Decision Layer
-        # =========================
 
+        # ==================================================
+        # Decision Layer
+        # ==================================================
 
         decision = (
 
@@ -504,10 +586,9 @@ class FullAnalysisEngine:
 
 
 
-        # =========================
+        # ==================================================
         # Confidence Layer
-        # =========================
-
+        # ==================================================
 
         confidence_result = (
 
@@ -535,10 +616,9 @@ class FullAnalysisEngine:
 
 
 
-        # =========================
+        # ==================================================
         # Final Report
-        # =========================
-
+        # ==================================================
 
         return AnalysisReport(
 
@@ -609,21 +689,15 @@ class FullAnalysisEngine:
 
             reasons=(
 
-
                 analysis_result.reasons
 
-
                 +
-
 
                 decision.reasons
 
-
                 +
 
-
                 confidence_result.warnings
-
 
             ),
 
