@@ -41,10 +41,6 @@ class DecisionEngine:
 
 
 
-    # =========================
-    # Default Weights
-    # =========================
-
     WEIGHTS = {
 
         "smart_money": 0.25,
@@ -67,10 +63,6 @@ class DecisionEngine:
 
 
 
-    # =========================
-    # Constructor
-    # =========================
-
     def __init__(
         self,
         weights: dict[str, float] | None = None,
@@ -84,14 +76,15 @@ class DecisionEngine:
 
 
 
-    # =========================
+    # ==================================================
     # Main Decision
-    # =========================
+    # ==================================================
 
     def decide(
         self,
         analysis: Any,
     ) -> DecisionResult:
+
 
         score = 0.0
 
@@ -103,9 +96,8 @@ class DecisionEngine:
         # Smart Money
         # -------------------------
 
-        smc_score = (
-            analysis.smart_money_score
-        )
+        smc_score = analysis.smart_money_score
+
 
         score += (
             smc_score
@@ -120,6 +112,7 @@ class DecisionEngine:
                 "Smart Money bullish bias"
             )
 
+
         elif analysis.smc_bias.lower() == "bearish":
 
             reasons.append(
@@ -132,9 +125,8 @@ class DecisionEngine:
         # Structure
         # -------------------------
 
-        structure_score = (
-            analysis.structure_score
-        )
+        structure_score = analysis.structure_score
+
 
         score += (
             structure_score
@@ -195,7 +187,7 @@ class DecisionEngine:
 
 
         # -------------------------
-        # Pattern Engines
+        # Patterns
         # -------------------------
 
         score += (
@@ -220,9 +212,9 @@ class DecisionEngine:
 
 
 
-        # =========================
+        # ==================================================
         # Normalize Score
-        # =========================
+        # ==================================================
 
         score = max(
             0,
@@ -234,58 +226,50 @@ class DecisionEngine:
 
 
 
-        # =========================
+        # ==================================================
         # Signal
-        # =========================
+        # فقط سه حالت خروجی
+        # ==================================================
 
-        if score >= 80:
-
-            signal = "STRONG BUY"
-
-
-        elif score >= 60:
+        if score >= 60:
 
             signal = "BUY"
 
 
-        elif score >= 40:
-
-            signal = "NEUTRAL"
-
-
-        elif score >= 20:
+        elif score <= 40:
 
             signal = "SELL"
 
 
         else:
 
-            signal = "STRONG SELL"
+            signal = "NEUTRAL"
 
 
 
-        # =========================
+        # ==================================================
         # Confidence
-        # =========================
+        # خروجی بین 0 و 1
+        # ==================================================
 
         confidence = abs(
             score - 50
-        ) * 2
+        ) / 50
 
 
         confidence = max(
             0,
             min(
-                100,
+                1,
                 confidence
             )
         )
 
 
 
-        # =========================
+        # ==================================================
         # Bias
-        # =========================
+        # ==================================================
 
         if score >= 50:
 
@@ -301,17 +285,21 @@ class DecisionEngine:
 
             signal=signal,
 
+
             score=round(
                 score,
                 2
             ),
 
+
             confidence=round(
                 confidence,
-                2
+                3
             ),
 
+
             bias=bias,
+
 
             reasons=reasons,
 
