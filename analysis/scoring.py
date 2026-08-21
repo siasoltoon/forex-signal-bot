@@ -111,6 +111,13 @@ class AnalysisScorer:
 
 
         components.append(
+            self._score_brooks(
+                analysis_result
+            )
+        )
+
+        
+        components.append(
             self._score_wyckoff(
                 analysis_result
             )
