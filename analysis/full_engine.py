@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from analysis.report import AnalysisReport
 
-
 from analysis.candle import Candle
 
 
@@ -172,6 +171,10 @@ class FullAnalysisEngine:
 
 
 
+        # =========================
+        # Normalize Input
+        # =========================
+
         if isinstance(
             candles[0],
             Candle
@@ -224,6 +227,11 @@ class FullAnalysisEngine:
 
 
 
+        # =========================
+        # Core Engines
+        # =========================
+
+
         structure = (
             self.structure_detector.analyze(
                 closes
@@ -271,6 +279,11 @@ class FullAnalysisEngine:
         )
 
 
+        
+        # =========================
+        # Advanced Pattern Engines
+        # =========================
+
 
         elliott_result = (
             self.elliott_engine.analyze(
@@ -310,7 +323,13 @@ class FullAnalysisEngine:
             )
         )
 
-        
+
+
+        # =========================
+        # Build Analysis Result
+        # =========================
+
+
         analysis_result = AnalysisResult(
 
 
@@ -324,6 +343,7 @@ class FullAnalysisEngine:
 
 
             candles=candle_data,
+
 
 
             supply_demand=(
@@ -418,6 +438,54 @@ class FullAnalysisEngine:
 
 
 
+            smc_bias=(
+
+                smc_result.bias
+
+            ),
+
+
+
+            smc_structure=(
+
+                smc_result.structure
+
+            ),
+
+
+
+            order_block=(
+
+                smc_result.order_block
+
+            ),
+
+
+
+            liquidity=(
+
+                smc_result.liquidity
+
+            ),
+
+
+
+            fair_value_gap=(
+
+                smc_result.fair_value_gap
+
+            ),
+
+
+
+            premium_discount=(
+
+                smc_result.premium_discount
+
+            ),
+
+
+
             reasons=(
 
                 momentum_result.reasons
@@ -452,6 +520,11 @@ class FullAnalysisEngine:
 
 
 
+        # =========================
+        # Final Score
+        # =========================
+
+
         score = (
             self.scorer.score(
                 analysis_result
@@ -472,6 +545,11 @@ class FullAnalysisEngine:
 
 
 
+        # =========================
+        # Final Report
+        # =========================
+
+
         return AnalysisReport(
 
 
@@ -490,9 +568,59 @@ class FullAnalysisEngine:
             confidence=score.confidence,
 
 
+
+            smc_bias=(
+
+                smc_result.bias
+
+            ),
+
+
+
+            smc_structure=(
+
+                smc_result.structure
+
+            ),
+
+
+
+            order_block=(
+
+                smc_result.order_block
+
+            ),
+
+
+
+            liquidity=(
+
+                smc_result.liquidity
+
+            ),
+
+
+
+            fair_value_gap=(
+
+                smc_result.fair_value_gap
+
+            ),
+
+
+
+            premium_discount=(
+
+                smc_result.premium_discount
+
+            ),
+
+
+
             reasons=analysis_result.reasons,
 
 
             indicators=indicator_snapshot.values,
+
 
         )
