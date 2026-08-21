@@ -31,6 +31,11 @@ from analysis.confidence_engine import (
 )
 
 
+from analysis.risk_engine import (
+    RiskEngine,
+)
+
+
 from analysis.indicator_engine import (
     IndicatorEngine,
 )
@@ -101,6 +106,7 @@ class FullAnalysisEngine:
     - Smart Money
     - Decision
     - Confidence
+    - Risk Management
     """
 
 
@@ -163,6 +169,7 @@ class FullAnalysisEngine:
         )
 
 
+
         self.decision_engine = (
             DecisionEngine()
         )
@@ -170,6 +177,11 @@ class FullAnalysisEngine:
 
         self.confidence_engine = (
             ConfidenceEngine()
+        )
+
+
+        self.risk_engine = (
+            RiskEngine()
         )
 
 
@@ -568,6 +580,24 @@ class FullAnalysisEngine:
 
 
         # ==================================================
+        # Risk Management Layer
+        # ==================================================
+
+        risk_result = (
+
+            self.risk_engine.calculate(
+
+                signal=decision.signal,
+
+                current_price=closes[-1],
+
+            )
+
+        )
+
+
+
+        # ==================================================
         # Confidence Grade
         # ==================================================
 
@@ -594,26 +624,6 @@ class FullAnalysisEngine:
         else:
 
             confidence_grade = "VERY_LOW"
-
-
-
-        # ==================================================
-        # Risk Level
-        # ==================================================
-
-        if confidence_result.confidence >= 0.75:
-
-            risk_level = "LOW"
-
-
-        elif confidence_result.confidence >= 0.50:
-
-            risk_level = "MEDIUM"
-
-
-        else:
-
-            risk_level = "HIGH"
 
 
 
@@ -680,7 +690,22 @@ class FullAnalysisEngine:
             decision_bias=decision.bias,
 
 
-            risk_level=risk_level,
+
+            # Risk Management
+
+            risk_level=risk_result.risk_level,
+
+
+            entry_price=risk_result.entry_price,
+
+
+            stop_loss=risk_result.stop_loss,
+
+
+            take_profit=risk_result.take_profit,
+
+
+            risk_reward=risk_result.risk_reward,
 
 
 
@@ -718,6 +743,14 @@ class FullAnalysisEngine:
                 +
 
                 confidence_result.warnings
+
+                +
+
+                [
+
+                    risk_result.reason
+
+                ]
 
             ),
 
