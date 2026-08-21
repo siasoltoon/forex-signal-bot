@@ -5,6 +5,10 @@ from typing import Any
 
 
 
+# ==================================================
+# Analysis Report
+# ==================================================
+
 @dataclass(
     frozen=True
 )
@@ -18,10 +22,16 @@ class AnalysisReport:
     - Final score
     - Signal
     - Confidence
+    - Smart Money Concepts
     - Reasons
     - Indicators
     """
 
+
+
+    # =========================
+    # Core Result
+    # =========================
 
     trend: str
 
@@ -39,7 +49,32 @@ class AnalysisReport:
 
 
 
-    # Explanation layer
+    # =========================
+    # Smart Money Concepts
+    # =========================
+
+    smc_bias: str = "neutral"
+
+
+    smc_structure: str = "none"
+
+
+    order_block: str = "none"
+
+
+    liquidity: str = "none"
+
+
+    fair_value_gap: bool = False
+
+
+    premium_discount: str = "none"
+
+
+
+    # =========================
+    # Explanation Layer
+    # =========================
 
     reasons: list[str] = field(
         default_factory=list
@@ -47,7 +82,9 @@ class AnalysisReport:
 
 
 
-    # Indicator snapshot
+    # =========================
+    # Indicator Snapshot
+    # =========================
 
     indicators: dict[str, Any] = field(
         default_factory=dict
