@@ -26,6 +26,9 @@ class AnalysisScorer:
     - Harmonic Pattern
     - Brooks Price Action
     - Wyckoff
+    - Smart Money Concepts
+    - Liquidity
+    - AI
     """
 
 
@@ -120,6 +123,27 @@ class AnalysisScorer:
 
         components.append(
             self._score_wyckoff(
+                analysis_result
+            )
+        )
+
+
+        components.append(
+            self._score_smart_money(
+                analysis_result
+            )
+        )
+
+
+        components.append(
+            self._score_liquidity(
+                analysis_result
+            )
+        )
+
+
+        components.append(
+            self._score_ai(
                 analysis_result
             )
         )
@@ -250,44 +274,14 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
-        momentum_score = getattr(
-            result,
-            "momentum_score",
-            0.0,
-        )
-
-
-        if momentum_score != 0:
-
-            return SignalComponent(
-                name="momentum",
-                score=momentum_score,
-                reason="Momentum engine score.",
-            )
-
-
-        if result.momentum == "oversold":
-
-            return SignalComponent(
-                name="momentum",
-                score=20,
-                reason="Market is oversold.",
-            )
-
-
-        if result.momentum == "overbought":
-
-            return SignalComponent(
-                name="momentum",
-                score=-20,
-                reason="Market is overbought.",
-            )
-
-
         return SignalComponent(
             name="momentum",
-            score=0,
-            reason="Neutral momentum.",
+            score=getattr(
+                result,
+                "momentum_score",
+                0.0,
+            ),
+            reason="Momentum engine score.",
         )
 
 
@@ -331,6 +325,7 @@ class AnalysisScorer:
         ).lower()
 
 
+
         if zone == "demand":
 
             return SignalComponent(
@@ -338,6 +333,7 @@ class AnalysisScorer:
                 score=15,
                 reason="Demand zone detected.",
             )
+
 
 
         if zone == "supply":
@@ -349,6 +345,7 @@ class AnalysisScorer:
             )
 
 
+
         return SignalComponent(
             name="supply_demand",
             score=0,
@@ -356,7 +353,7 @@ class AnalysisScorer:
         )
 
 
-
+    
     # =========================
     # Price Action
     # =========================
@@ -450,7 +447,7 @@ class AnalysisScorer:
 
 
     # =========================
-    # Brooks Price Action
+    # Brooks
     # =========================
 
 
@@ -460,26 +457,14 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
-        brooks_score = getattr(
-            result,
-            "brooks_score",
-            0.0,
-        )
-
-
-        if brooks_score != 0:
-
-            return SignalComponent(
-                name="brooks",
-                score=brooks_score,
-                reason="Al Brooks price action score.",
-            )
-
-
         return SignalComponent(
             name="brooks",
-            score=0.0,
-            reason="No Brooks pattern detected.",
+            score=getattr(
+                result,
+                "brooks_score",
+                0.0,
+            ),
+            reason="Al Brooks price action score.",
         )
 
 
@@ -508,6 +493,75 @@ class AnalysisScorer:
 
 
     # =========================
+    # Smart Money Concepts
+    # =========================
+
+
+    @staticmethod
+    def _score_smart_money(
+        result: AnalysisResult,
+    ) -> SignalComponent:
+
+
+        return SignalComponent(
+            name="smart_money",
+            score=getattr(
+                result,
+                "smart_money_score",
+                0.0,
+            ),
+            reason="Smart Money Concepts score.",
+        )
+
+
+
+    # =========================
+    # Liquidity
+    # =========================
+
+
+    @staticmethod
+    def _score_liquidity(
+        result: AnalysisResult,
+    ) -> SignalComponent:
+
+
+        return SignalComponent(
+            name="liquidity",
+            score=getattr(
+                result,
+                "liquidity_score",
+                0.0,
+            ),
+            reason="Liquidity analysis score.",
+        )
+
+
+
+    # =========================
+    # AI
+    # =========================
+
+
+    @staticmethod
+    def _score_ai(
+        result: AnalysisResult,
+    ) -> SignalComponent:
+
+
+        return SignalComponent(
+            name="ai",
+            score=getattr(
+                result,
+                "ai_score",
+                0.0,
+            ),
+            reason="AI model score.",
+        )
+
+
+
+    # =========================
     # Direction
     # =========================
 
@@ -523,9 +577,11 @@ class AnalysisScorer:
             return "BUY"
 
 
+
         if score < 0:
 
             return "SELL"
+
 
 
         return "NEUTRAL"
