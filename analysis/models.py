@@ -59,7 +59,9 @@ class AnalysisCandle:
 
 
     @property
-    def body_size(self) -> float:
+    def body_size(
+        self,
+    ) -> float:
 
         return abs(
             self.close - self.open
@@ -67,13 +69,17 @@ class AnalysisCandle:
 
 
     @property
-    def is_bullish(self) -> bool:
+    def is_bullish(
+        self,
+    ) -> bool:
 
         return self.close > self.open
 
 
     @property
-    def is_bearish(self) -> bool:
+    def is_bearish(
+        self,
+    ) -> bool:
 
         return self.close < self.open
 
@@ -84,45 +90,38 @@ class AnalysisCandle:
 )
 class SignalComponent:
     """
-    Single analysis signal component.
+    Single scoring component.
 
-    Used by scoring engine to combine
-    different analysis modules.
+    Used by analysis scoring engine.
     """
 
     name: str
 
-    direction: str
+    score: float
 
-    weight: float
-
-    confidence: float
+    reason: str
 
 
-    def __post_init__(self) -> None:
+    def __post_init__(
+        self,
+    ) -> None:
 
         if not self.name:
             raise ValueError(
                 "name cannot be empty."
             )
 
-        if self.direction not in (
-            "bullish",
-            "bearish",
-            "neutral",
+        if not isinstance(
+            self.score,
+            (int, float),
         ):
-            raise ValueError(
-                "invalid direction."
+            raise TypeError(
+                "score must be numeric."
             )
 
-        if self.weight < 0:
+        if not self.reason:
             raise ValueError(
-                "weight cannot be negative."
-            )
-
-        if not 0 <= self.confidence <= 1:
-            raise ValueError(
-                "confidence must be between 0 and 1."
+                "reason cannot be empty."
             )
 
 
@@ -132,26 +131,26 @@ class SignalComponent:
 )
 class AnalysisScore:
     """
-    Combined analysis score.
+    Final analysis score.
     """
 
-    bullish: float = 0.0
+    score: float
 
-    bearish: float = 0.0
+    confidence: float
 
-    confidence: float = 0.0
+    signal: str
 
 
-    def __post_init__(self) -> None:
+    def __post_init__(
+        self,
+    ) -> None:
 
-        if self.bullish < 0:
-            raise ValueError(
-                "bullish cannot be negative."
-            )
-
-        if self.bearish < 0:
-            raise ValueError(
-                "bearish cannot be negative."
+        if not isinstance(
+            self.score,
+            (int, float),
+        ):
+            raise TypeError(
+                "score must be numeric."
             )
 
         if not 0 <= self.confidence <= 1:
@@ -159,17 +158,14 @@ class AnalysisScore:
                 "confidence must be between 0 and 1."
             )
 
-
-    @property
-    def bias(self) -> str:
-
-        if self.bullish > self.bearish:
-            return "bullish"
-
-        if self.bearish > self.bullish:
-            return "bearish"
-
-        return "neutral"
+        if self.signal not in (
+            "buy",
+            "sell",
+            "hold",
+        ):
+            raise ValueError(
+                "invalid signal."
+            )
 
 
 
@@ -178,7 +174,7 @@ class AnalysisScore:
 )
 class PriceData:
     """
-    Generic price data.
+    Generic price container.
     """
 
     close: float
