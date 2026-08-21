@@ -19,19 +19,27 @@ class AnalysisScorer:
 
         components: list[SignalComponent] = []
 
+
+        # Trend
+
         components.append(
             self._score_trend(
                 analysis_result.trend
             )
         )
 
+
+        # Momentum
+
         components.append(
             self._score_momentum(
-                analysis_result.momentum
+                analysis_result
             )
         )
 
-        # Supply / Demand (optional)
+
+        # Supply / Demand
+
         supply_demand = getattr(
             analysis_result,
             "supply_demand",
@@ -39,6 +47,7 @@ class AnalysisScorer:
         )
 
         if supply_demand:
+
             components.append(
                 self._score_supply_demand(
                     supply_demand
@@ -46,10 +55,12 @@ class AnalysisScorer:
             )
 
 
+
         total_score = sum(
             component.score
             for component in components
         )
+
 
 
         total_score = max(
@@ -61,15 +72,19 @@ class AnalysisScorer:
         )
 
 
+
         return AnalysisScore(
             score=float(total_score),
+
             direction=self._direction(
                 total_score
             ),
+
             confidence=abs(
                 total_score
             ) / 100,
         )
+
 
 
     @staticmethod
@@ -77,18 +92,22 @@ class AnalysisScorer:
         trend: str,
     ) -> SignalComponent:
 
+
         if trend == "bullish":
+
             return SignalComponent(
                 name="trend",
                 score=30,
-                reason="Price is above moving average.",
+                reason="Bullish trend detected.",
             )
 
+
         if trend == "bearish":
+
             return SignalComponent(
                 name="trend",
                 score=-30,
-                reason="Price is below moving average.",
+                reason="Bearish trend detected.",
             )
 
 
@@ -99,12 +118,46 @@ class AnalysisScorer:
         )
 
 
+
     @staticmethod
     def _score_momentum(
-        momentum: str,
+        analysis_result: AnalysisResult,
     ) -> SignalComponent:
 
+
+        # Use advanced momentum score
+
+        if (
+            analysis_result.momentum_score
+            != 0
+        ):
+
+            return SignalComponent(
+                name="momentum",
+
+                score=analysis_result.momentum_score,
+
+                reason=(
+                    ", ".join(
+                        analysis_result.momentum_reasons
+                        or []
+                    )
+                    or
+                    "Momentum analysis."
+                ),
+            )
+
+
+
+        # Backward compatibility
+
+        momentum = (
+            analysis_result.momentum
+        )
+
+
         if momentum == "oversold":
+
             return SignalComponent(
                 name="momentum",
                 score=20,
@@ -113,11 +166,13 @@ class AnalysisScorer:
 
 
         if momentum == "overbought":
+
             return SignalComponent(
                 name="momentum",
                 score=-20,
                 reason="Market is overbought.",
             )
+
 
 
         return SignalComponent(
@@ -127,12 +182,15 @@ class AnalysisScorer:
         )
 
 
+
     @staticmethod
     def _score_supply_demand(
         supply_demand,
     ) -> SignalComponent:
 
+
         if supply_demand == "demand":
+
             return SignalComponent(
                 name="supply_demand",
                 score=20,
@@ -141,6 +199,7 @@ class AnalysisScorer:
 
 
         if supply_demand == "supply":
+
             return SignalComponent(
                 name="supply_demand",
                 score=-20,
@@ -155,15 +214,21 @@ class AnalysisScorer:
         )
 
 
+
     @staticmethod
     def _direction(
         score: float,
     ) -> str:
 
+
         if score > 0:
+
             return "BUY"
 
+
         if score < 0:
+
             return "SELL"
+
 
         return "NEUTRAL"
