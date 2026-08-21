@@ -39,14 +39,34 @@ class ConfidenceResult:
 
 class ConfidenceEngine:
     """
-    Evaluates reliability of final analysis.
+    Evaluates reliability of analysis.
 
-    Checks:
-
+    Uses:
     - Engine agreement
-    - Conflicts
+    - Weighted voting
+    - Conflict detection
     - Market uncertainty
     """
+
+
+
+    WEIGHTS = {
+
+        "smart_money": 2.0,
+
+        "structure": 1.5,
+
+        "price_action": 1.3,
+
+        "momentum": 1.2,
+
+        "elliott": 1.0,
+
+        "harmonic": 1.0,
+
+        "wyckoff": 1.0,
+
+    }
 
 
 
@@ -59,6 +79,31 @@ class ConfidenceEngine:
 
 
     # ==================================================
+    # Normalize Score
+    # ==================================================
+
+    @staticmethod
+    def normalize(
+        score: float,
+    ) -> float:
+
+        return max(
+
+            0.0,
+
+            min(
+
+                100.0,
+
+                float(score)
+
+            )
+
+        )
+
+
+
+    # ==================================================
     # Convert Score To Direction
     # ==================================================
 
@@ -67,12 +112,18 @@ class ConfidenceEngine:
         score: float,
     ) -> str:
 
-        if score > 55:
+
+        score = ConfidenceEngine.normalize(
+            score
+        )
+
+
+        if score >= 55:
 
             return "bullish"
 
 
-        elif score < 45:
+        elif score <= 45:
 
             return "bearish"
 
@@ -80,9 +131,9 @@ class ConfidenceEngine:
         return "neutral"
 
 
-
+    
     # ==================================================
-    # Main Calculation
+    # Main Evaluation
     # ==================================================
 
     def evaluate(
@@ -98,12 +149,19 @@ class ConfidenceEngine:
         neutral_votes = 0
 
 
+        weighted_bullish = 0.0
+
+        weighted_bearish = 0.0
+
+        weighted_neutral = 0.0
+
+
         warnings: list[str] = []
 
 
 
         # ==========================
-        # Collect Analysis Engines
+        # Collect Engines
         # ==========================
 
         engines = {
@@ -120,7 +178,6 @@ class ConfidenceEngine:
             ),
 
 
-
             "structure": getattr(
 
                 analysis,
@@ -130,7 +187,6 @@ class ConfidenceEngine:
                 50
 
             ),
-
 
 
             "price_action": getattr(
@@ -144,7 +200,6 @@ class ConfidenceEngine:
             ),
 
 
-
             "momentum": getattr(
 
                 analysis,
@@ -154,7 +209,6 @@ class ConfidenceEngine:
                 50
 
             ),
-
 
 
             "elliott": getattr(
@@ -168,7 +222,6 @@ class ConfidenceEngine:
             ),
 
 
-
             "harmonic": getattr(
 
                 analysis,
@@ -178,7 +231,6 @@ class ConfidenceEngine:
                 50
 
             ),
-
 
 
             "wyckoff": getattr(
@@ -204,14 +256,26 @@ class ConfidenceEngine:
 
             state = self.direction(
 
-                float(score)
+                score
 
             )
+
+
+            weight = self.WEIGHTS.get(
+
+                name,
+
+                1.0
+
+            )
+
 
 
             if state == "bullish":
 
                 bullish_votes += 1
+
+                weighted_bullish += weight
 
 
 
@@ -219,67 +283,61 @@ class ConfidenceEngine:
 
                 bearish_votes += 1
 
+                weighted_bearish += weight
+
 
 
             else:
 
                 neutral_votes += 1
 
+                weighted_neutral += weight
 
-      
-        # ==========================
-        # Agreement Calculation
-        # ==========================
 
-        total_votes = (
 
-            bullish_votes
 
-            +
 
-            bearish_votes
+        total_weight = (
+
+            weighted_bullish
 
             +
 
-            neutral_votes
+            weighted_bearish
+
+            +
+
+            weighted_neutral
 
         )
 
 
 
-        if total_votes == 0:
+        if total_weight == 0:
 
             agreement = 0.0
 
 
         else:
 
-            strongest_vote = max(
+            agreement = max(
 
-                bullish_votes,
+                weighted_bullish,
 
-                bearish_votes,
+                weighted_bearish,
 
-                neutral_votes
+                weighted_neutral
 
-            )
+            ) / total_weight
 
 
-            agreement = (
-
-                strongest_vote
-
-                /
-
-                total_votes
-
-            )
 
 
 
         # ==========================
         # Conflict Detection
         # ==========================
+
 
         if (
 
@@ -313,7 +371,25 @@ class ConfidenceEngine:
 
             warnings.append(
 
-                "Low agreement between analysis models"
+                "Low model agreement"
+
+            )
+
+
+
+        if (
+
+            bullish_votes >= 5
+
+            and
+
+            bearish_votes >= 2
+
+        ):
+
+            warnings.append(
+
+                "Strong bullish/bearish disagreement detected"
 
             )
 
@@ -323,11 +399,10 @@ class ConfidenceEngine:
         # Final Confidence
         # ==========================
 
+
         confidence = agreement
 
 
-
-        # Conflict penalty
 
         if (
 
@@ -360,10 +435,11 @@ class ConfidenceEngine:
 
 
         # ==========================
-        # Return Result
+        # Return
         # ==========================
 
         return ConfidenceResult(
+
 
             confidence=round(
 
