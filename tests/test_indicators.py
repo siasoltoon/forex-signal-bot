@@ -26,6 +26,8 @@ def test_sma() -> None:
     )
 
     assert result == [
+        None,
+        None,
         2.0,
         3.0,
         4.0,
@@ -48,7 +50,7 @@ def test_ema() -> None:
 
     assert len(result) == len(values)
 
-    assert result[0] == 1
+    assert result[0] is None
 
 
 def test_rsi() -> None:
@@ -60,6 +62,8 @@ def test_rsi() -> None:
         4,
         5,
         6,
+        7,
+        8,
     ]
 
     result = rsi(
@@ -77,18 +81,12 @@ def test_rsi() -> None:
 
 
 def test_macd() -> None:
-    values = [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-    ]
+    values = list(
+        range(
+            1,
+            100,
+        )
+    )
 
     result = macd(
         values,
@@ -103,22 +101,15 @@ def test_macd() -> None:
 
 
 def test_stochastic_rsi() -> None:
-    values = [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-    ]
+    values = list(
+        range(
+            1,
+            50,
+        )
+    )
 
     result = stochastic_rsi(
         values,
-        period=5,
     )
 
     assert len(result) == len(values)
@@ -161,7 +152,10 @@ def test_period_larger_than_series() -> None:
         period=5,
     )
 
-    assert result == []
+    assert result == [
+        None,
+        None,
+    ]
 
 
 def test_non_numeric_values() -> None:
@@ -172,7 +166,7 @@ def test_non_numeric_values() -> None:
     ]
 
     with pytest.raises(
-        TypeError
+        ValueError
     ):
         sma(
             values,
