@@ -55,11 +55,7 @@ class AnalysisScore:
 # Complete Analysis Result
 # ==================================================
 
-@dataclass(
-    frozen=True
-)
-class AnalysisResult:
-    """
+
     Complete technical analysis state.
     """
 
