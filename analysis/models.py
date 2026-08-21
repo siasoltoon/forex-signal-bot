@@ -74,7 +74,8 @@ class AnalysisResult:
     - Harmonic Patterns
     - Al Brooks Price Action
     - Wyckoff
-    - Future AI Models
+    - Smart Money Concepts
+    - AI Expansion
     """
 
 
@@ -144,6 +145,9 @@ class AnalysisResult:
 
 
     wyckoff_score: float = 0.0
+
+
+    smc_score: float = 0.0
 
 
 
