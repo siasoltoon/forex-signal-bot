@@ -107,6 +107,7 @@ def test_missing_provider() -> None:
 
 
 def test_empty_provider_name() -> None:
+
     class EmptyNameProvider(
         MarketDataProvider
     ):
@@ -132,6 +133,7 @@ def test_empty_provider_name() -> None:
 
 @pytest.mark.asyncio
 async def test_get_candles() -> None:
+
     candles = [
         make_candle(1),
         make_candle(2),
@@ -158,6 +160,7 @@ async def test_get_candles() -> None:
 
 @pytest.mark.asyncio
 async def test_get_candles_respects_limit() -> None:
+
     candles = [
         make_candle(1),
         make_candle(2),
@@ -185,6 +188,7 @@ async def test_get_candles_respects_limit() -> None:
 
 @pytest.mark.asyncio
 async def test_get_candles_empty_result() -> None:
+
     manager = DataManager()
 
     manager.register(
@@ -203,6 +207,7 @@ async def test_get_candles_empty_result() -> None:
 
 @pytest.mark.asyncio
 async def test_get_candles_invalid_limit() -> None:
+
     manager = DataManager()
 
     manager.register(
@@ -223,6 +228,7 @@ async def test_get_candles_invalid_limit() -> None:
 
 @pytest.mark.asyncio
 async def test_get_candles_negative_limit() -> None:
+
     manager = DataManager()
 
     manager.register(
@@ -242,7 +248,8 @@ async def test_get_candles_negative_limit() -> None:
 
 
 @pytest.mark.asyncio
-async def test_provider_error_is_propagated() -> None:
+async def test_provider_error_is_wrapped() -> None:
+
     original_error = RuntimeError(
         "provider failure"
     )
@@ -256,9 +263,10 @@ async def test_provider_error_is_propagated() -> None:
     )
 
     with pytest.raises(
-        RuntimeError,
-        match="provider failure",
-    ):
+        ApplicationError,
+        match="Failed to fetch market candles",
+    ) as exc:
+
         await manager.get_candles(
             provider_name="fake",
             symbol="EUR_USD",
@@ -266,14 +274,25 @@ async def test_provider_error_is_propagated() -> None:
             limit=100,
         )
 
+    assert isinstance(
+        exc.value.__cause__,
+        RuntimeError,
+    )
+
+    assert str(
+        exc.value.__cause__
+    ) == "provider failure"
+
 
 def test_list_providers_empty() -> None:
+
     manager = DataManager()
 
     assert manager.list_providers() == []
 
 
 def test_multiple_providers() -> None:
+
     manager = DataManager()
 
     first = FakeProvider()
