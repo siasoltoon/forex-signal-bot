@@ -20,7 +20,7 @@ class AnalysisScorer:
         components: list[SignalComponent] = []
 
 
-        # Trend
+        # Trend score
 
         components.append(
             self._score_trend(
@@ -29,7 +29,7 @@ class AnalysisScorer:
         )
 
 
-        # Momentum
+        # Momentum score
 
         components.append(
             self._score_momentum(
@@ -38,7 +38,7 @@ class AnalysisScorer:
         )
 
 
-        # Supply / Demand
+        # Supply / Demand score
 
         supply_demand = getattr(
             analysis_result,
@@ -55,13 +55,13 @@ class AnalysisScorer:
             )
 
 
-
         total_score = sum(
             component.score
             for component in components
         )
 
 
+        # Limit score range
 
         total_score = max(
             -100,
@@ -70,7 +70,6 @@ class AnalysisScorer:
                 total_score,
             ),
         )
-
 
 
         return AnalysisScore(
@@ -92,13 +91,14 @@ class AnalysisScorer:
         trend: str,
     ) -> SignalComponent:
 
-
         if trend == "bullish":
 
             return SignalComponent(
                 name="trend",
                 score=30,
-                reason="Bullish trend detected.",
+                reason=(
+                    "Bullish trend detected."
+                ),
             )
 
 
@@ -107,14 +107,18 @@ class AnalysisScorer:
             return SignalComponent(
                 name="trend",
                 score=-30,
-                reason="Bearish trend detected.",
+                reason=(
+                    "Bearish trend detected."
+                ),
             )
 
 
         return SignalComponent(
             name="trend",
             score=0,
-            reason="No clear trend.",
+            reason=(
+                "No clear trend."
+            ),
         )
 
 
@@ -124,36 +128,77 @@ class AnalysisScorer:
         analysis_result: AnalysisResult,
     ) -> SignalComponent:
 
+        """
+        Supports:
+        - New MomentumEngine output
+        - Old test compatibility
+        """
 
-        # Use advanced momentum score
 
-        if (
-            analysis_result.momentum_score
-            != 0
-        ):
+        momentum_score = getattr(
+            analysis_result,
+            "momentum_score",
+            0,
+        )
+
+
+        momentum_reasons = getattr(
+            analysis_result,
+            "momentum_reasons",
+            None,
+        )
+
+
+        # Advanced momentum engine
+
+        if momentum_score != 0:
 
             return SignalComponent(
                 name="momentum",
 
-                score=analysis_result.momentum_score,
+                score=float(
+                    momentum_score
+                ),
 
                 reason=(
                     ", ".join(
-                        analysis_result.momentum_reasons
-                        or []
+                        momentum_reasons
                     )
-                    or
-                    "Momentum analysis."
+                    if momentum_reasons
+                    else
+                    "Momentum engine signal."
                 ),
             )
 
 
 
-        # Backward compatibility
+        # Legacy momentum support
 
         momentum = (
             analysis_result.momentum
         )
+
+
+        if momentum == "bullish":
+
+            return SignalComponent(
+                name="momentum",
+                score=20,
+                reason=(
+                    "Momentum is bullish."
+                ),
+            )
+
+
+        if momentum == "bearish":
+
+            return SignalComponent(
+                name="momentum",
+                score=-20,
+                reason=(
+                    "Momentum is bearish."
+                ),
+            )
 
 
         if momentum == "oversold":
@@ -161,7 +206,9 @@ class AnalysisScorer:
             return SignalComponent(
                 name="momentum",
                 score=20,
-                reason="Market is oversold.",
+                reason=(
+                    "Market is oversold."
+                ),
             )
 
 
@@ -170,15 +217,18 @@ class AnalysisScorer:
             return SignalComponent(
                 name="momentum",
                 score=-20,
-                reason="Market is overbought.",
+                reason=(
+                    "Market is overbought."
+                ),
             )
-
 
 
         return SignalComponent(
             name="momentum",
             score=0,
-            reason="Neutral momentum.",
+            reason=(
+                "Neutral momentum."
+            ),
         )
 
 
@@ -194,7 +244,9 @@ class AnalysisScorer:
             return SignalComponent(
                 name="supply_demand",
                 score=20,
-                reason="Demand zone detected.",
+                reason=(
+                    "Demand zone detected."
+                ),
             )
 
 
@@ -203,14 +255,18 @@ class AnalysisScorer:
             return SignalComponent(
                 name="supply_demand",
                 score=-20,
-                reason="Supply zone detected.",
+                reason=(
+                    "Supply zone detected."
+                ),
             )
 
 
         return SignalComponent(
             name="supply_demand",
             score=0,
-            reason="No supply/demand signal.",
+            reason=(
+                "No supply/demand signal."
+            ),
         )
 
 
