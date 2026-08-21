@@ -41,10 +41,22 @@ class RiskResult:
     position_size: float | None
 
 
+    lot_size: float | None
+
+
     risk_amount: float | None
 
 
+    risk_percent: float | None
+
+
     trailing_stop: float | None
+
+
+    trade_quality: float | None
+
+
+    trade_grade: str
 
 
     risk_level: str
@@ -65,17 +77,19 @@ class RiskResult:
 
 class RiskEngine:
     """
-    Professional risk management engine.
+    Advanced professional risk management engine.
 
     Features:
 
-    - ATR Stop Loss
-    - Multi Take Profit
-    - Position Sizing
-    - Risk Percentage
-    - Trailing Stop
-    - Market Condition Filter
-    - Confidence Based Risk
+    - ATR based stop loss
+    - Dynamic risk percentage
+    - Position sizing
+    - Lot calculation
+    - Multi take profit
+    - Dynamic risk reward
+    - Trailing stop
+    - Market volatility filter
+    - Trade quality scoring
     """
 
 
@@ -86,27 +100,96 @@ class RiskEngine:
         atr_multiplier: float = 1.5,
         account_balance: float = 1000.0,
         risk_percent: float = 1.0,
+        contract_size: float = 100000,
     ) -> None:
 
 
         self.risk_reward_target = (
+
             risk_reward_target
+
         )
 
 
         self.atr_multiplier = (
+
             atr_multiplier
+
         )
 
 
         self.account_balance = (
+
             account_balance
+
         )
 
 
         self.risk_percent = (
+
             risk_percent
+
         )
+
+
+        self.contract_size = (
+
+            contract_size
+
+        )
+
+
+
+    # ==================================================
+    # Dynamic Risk Percentage
+    # ==================================================
+
+    def _dynamic_risk_percent(
+        self,
+        confidence: float,
+        score: float,
+    ) -> float:
+        """
+        Adjusts risk according to setup quality.
+        """
+
+
+        if (
+
+            confidence >= 0.85
+
+            and
+
+            abs(score) >= 80
+
+        ):
+
+            return 2.0
+
+
+
+        elif (
+
+            confidence >= 0.70
+
+            and
+
+            abs(score) >= 60
+
+        ):
+
+            return 1.5
+
+
+
+        elif confidence >= 0.50:
+
+            return 1.0
+
+
+
+        return 0.5
+
 
 
 
@@ -157,9 +240,9 @@ class RiskEngine:
     ) -> str:
 
 
-        if atr is None:
+        if atr is None or price <= 0:
 
-            return "NORMAL"
+            return "UNKNOWN"
 
 
 
@@ -178,6 +261,12 @@ class RiskEngine:
         if atr_percent < 0.2:
 
             return "LOW_VOLATILITY"
+
+
+
+        elif atr_percent > 3:
+
+            return "EXTREME_VOLATILITY"
 
 
 
@@ -207,12 +296,14 @@ class RiskEngine:
         if risk_distance is not None:
 
             return abs(
+
                 risk_distance
+
             )
 
 
 
-        if atr and atr > 0:
+        if atr is not None and atr > 0:
 
             return (
 
@@ -245,14 +336,14 @@ class RiskEngine:
     def _calculate_position_size(
         self,
         risk_distance: float,
-    ) -> tuple[float, float]:
+        dynamic_risk_percent: float,
+    ) -> tuple[float, float, float]:
         """
-        Calculates position size.
+        Calculates:
 
-        Returns:
-
-        position_size
-        risk_amount
+        - Position size
+        - Lot size
+        - Risk amount
         """
 
 
@@ -264,7 +355,7 @@ class RiskEngine:
 
             (
 
-                self.risk_percent
+                dynamic_risk_percent
 
                 /
 
@@ -275,15 +366,19 @@ class RiskEngine:
         )
 
 
+
         if risk_distance <= 0:
 
             return (
 
                 0.0,
 
+                0.0,
+
                 risk_amount
 
             )
+
 
 
         position_size = (
@@ -297,23 +392,146 @@ class RiskEngine:
         )
 
 
+
+        lot_size = (
+
+            position_size
+
+            /
+
+            self.contract_size
+
+        )
+
+
+
+        return (
+
+            round(position_size, 4),
+
+            round(lot_size, 3),
+
+            round(risk_amount, 2),
+
+        )
+
+
+
+
+    # ==================================================
+    # Trade Quality
+    # ==================================================
+
+    @staticmethod
+    def _trade_quality(
+        confidence: float,
+        score: float,
+        market_condition: str,
+    ) -> tuple[float, str]:
+        """
+        Calculates setup quality.
+        """
+
+
+        quality = 0.0
+
+
+
+        quality += (
+
+            confidence
+
+            *
+
+            50
+
+        )
+
+
+
+        quality += (
+
+            min(
+
+                abs(score),
+
+                50
+
+            )
+
+        )
+
+
+
+        if market_condition == "NORMAL":
+
+            quality += 10
+
+
+
+        elif market_condition == "HIGH_VOLATILITY":
+
+            quality -= 10
+
+
+
+        elif market_condition == "EXTREME_VOLATILITY":
+
+            quality -= 20
+
+
+
+        quality = max(
+
+            0,
+
+            min(
+
+                quality,
+
+                100
+
+            )
+
+        )
+
+
+
+        if quality >= 90:
+
+            grade = "A+"
+
+
+
+        elif quality >= 75:
+
+            grade = "A"
+
+
+
+        elif quality >= 60:
+
+            grade = "B"
+
+
+
+        else:
+
+            grade = "NO_TRADE"
+
+
+
         return (
 
             round(
 
-                position_size,
-
-                4
-
-            ),
-
-            round(
-
-                risk_amount,
+                quality,
 
                 2
 
             ),
+
+            grade
 
         )
 
@@ -330,6 +548,9 @@ class RiskEngine:
         risk_distance: float,
         risk_level: str,
         market_condition: str,
+        confidence: float,
+        score: float,
+        risk_percent: float,
     ) -> RiskResult:
 
 
@@ -393,79 +614,74 @@ class RiskEngine:
         )
 
 
-        position_size, risk_amount = (
+
+        position_size, lot_size, risk_amount = (
 
             self._calculate_position_size(
 
-                risk_distance
+                risk_distance,
+
+                risk_percent,
 
             )
 
         )
 
 
+
+        trade_quality, trade_grade = (
+
+            self._trade_quality(
+
+                confidence,
+
+                score,
+
+                market_condition,
+
+            )
+
+        )
+
+
+
         return RiskResult(
 
-            entry_price=round(
-                price,
-                5
-            ),
+            entry_price=round(price, 5),
 
+            stop_loss=round(stop_loss, 5),
 
-            stop_loss=round(
-                stop_loss,
-                5
-            ),
+            take_profit=round(tp2, 5),
 
+            take_profit_1=round(tp1, 5),
 
-            take_profit=round(
-                tp2,
-                5
-            ),
+            take_profit_2=round(tp2, 5),
 
-
-            take_profit_1=round(
-                tp1,
-                5
-            ),
-
-
-            take_profit_2=round(
-                tp2,
-                5
-            ),
-
-
-            take_profit_3=round(
-                tp3,
-                5
-            ),
-
+            take_profit_3=round(tp3, 5),
 
             risk_reward=2.0,
 
-
             position_size=position_size,
 
+            lot_size=lot_size,
 
             risk_amount=risk_amount,
 
+            risk_percent=risk_percent,
 
-            trailing_stop=round(
-                tp1,
-                5
-            ),
+            trailing_stop=round(tp1, 5),
 
+            trade_quality=trade_quality,
+
+            trade_grade=trade_grade,
 
             risk_level=risk_level,
 
-
             market_condition=market_condition,
-
 
             reason=(
 
-                "Professional bullish risk plan created"
+                "Professional bullish risk plan generated"
 
             ),
 
@@ -484,6 +700,9 @@ class RiskEngine:
         risk_distance: float,
         risk_level: str,
         market_condition: str,
+        confidence: float,
+        score: float,
+        risk_percent: float,
     ) -> RiskResult:
 
 
@@ -547,11 +766,28 @@ class RiskEngine:
         )
 
 
-        position_size, risk_amount = (
+        position_size, lot_size, risk_amount = (
 
             self._calculate_position_size(
 
-                risk_distance
+                risk_distance,
+
+                risk_percent,
+
+            )
+
+        )
+
+
+        trade_quality, trade_grade = (
+
+            self._trade_quality(
+
+                confidence,
+
+                score,
+
+                market_condition,
 
             )
 
@@ -560,74 +796,48 @@ class RiskEngine:
 
         return RiskResult(
 
-            entry_price=round(
-                price,
-                5
-            ),
+            entry_price=round(price, 5),
 
+            stop_loss=round(stop_loss, 5),
 
-            stop_loss=round(
-                stop_loss,
-                5
-            ),
+            take_profit=round(tp2, 5),
 
+            take_profit_1=round(tp1, 5),
 
-            take_profit=round(
-                tp2,
-                5
-            ),
+            take_profit_2=round(tp2, 5),
 
-
-            take_profit_1=round(
-                tp1,
-                5
-            ),
-
-
-            take_profit_2=round(
-                tp2,
-                5
-            ),
-
-
-            take_profit_3=round(
-                tp3,
-                5
-            ),
-
+            take_profit_3=round(tp3, 5),
 
             risk_reward=2.0,
 
-
             position_size=position_size,
 
+            lot_size=lot_size,
 
             risk_amount=risk_amount,
 
+            risk_percent=risk_percent,
 
-            trailing_stop=round(
-                tp1,
-                5
-            ),
+            trailing_stop=round(tp1, 5),
 
+            trade_quality=trade_quality,
+
+            trade_grade=trade_grade,
 
             risk_level=risk_level,
 
-
             market_condition=market_condition,
-
 
             reason=(
 
-                "Professional bearish risk plan created"
+                "Professional bearish risk plan generated"
 
             ),
 
         )
 
 
-
-
+    
     # ==================================================
     # Main Calculate
     # ==================================================
@@ -641,6 +851,29 @@ class RiskEngine:
         score: float = 0.0,
         risk_distance: float | None = None,
     ) -> RiskResult:
+        """
+        Main professional risk calculation.
+
+        Inputs:
+
+        signal:
+            BUY / SELL / NONE
+
+        current_price:
+            Current market price
+
+        atr:
+            Average True Range
+
+        confidence:
+            Analysis confidence
+
+        score:
+            Decision engine score
+
+        risk_distance:
+            Manual stop distance override
+        """
 
 
 
@@ -659,7 +892,12 @@ class RiskEngine:
         )
 
 
-        signal = signal.upper()
+
+        signal = (
+
+            signal.upper()
+
+        )
 
 
 
@@ -676,6 +914,7 @@ class RiskEngine:
         )
 
 
+
         market_condition = (
 
             self._market_condition(
@@ -683,6 +922,20 @@ class RiskEngine:
                 atr,
 
                 current_price,
+
+            )
+
+        )
+
+
+
+        dynamic_risk_percent = (
+
+            self._dynamic_risk_percent(
+
+                confidence,
+
+                score,
 
             )
 
@@ -703,6 +956,12 @@ class RiskEngine:
 
                 market_condition=market_condition,
 
+                confidence=confidence,
+
+                score=score,
+
+                risk_percent=dynamic_risk_percent,
+
             )
 
 
@@ -720,8 +979,33 @@ class RiskEngine:
 
                 market_condition=market_condition,
 
+                confidence=confidence,
+
+                score=score,
+
+                risk_percent=dynamic_risk_percent,
+
             )
 
+
+
+        # ==================================================
+        # No Trade
+        # ==================================================
+
+        trade_quality, trade_grade = (
+
+            self._trade_quality(
+
+                confidence,
+
+                score,
+
+                market_condition,
+
+            )
+
+        )
 
 
         return RiskResult(
@@ -742,9 +1026,17 @@ class RiskEngine:
 
             position_size=None,
 
+            lot_size=None,
+
             risk_amount=None,
 
+            risk_percent=dynamic_risk_percent,
+
             trailing_stop=None,
+
+            trade_quality=trade_quality,
+
+            trade_grade=trade_grade,
 
             risk_level="NONE",
 
@@ -752,7 +1044,7 @@ class RiskEngine:
 
             reason=(
 
-                "No trade setup available"
+                "No valid trade setup available"
 
             ),
 
