@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-
 from dataclasses import dataclass, field
-
 from typing import Any
 
 
@@ -13,10 +11,6 @@ from typing import Any
 class SignalComponent:
     """
     Single scoring component.
-
-    Example:
-    Trend = +30
-    Momentum = +20
     """
 
     name: str
@@ -54,18 +48,23 @@ class AnalysisResult:
     """
     Complete technical analysis state.
 
-    Contains outputs from:
+    Contains:
     - Market structure
     - Indicators
     - Momentum
-    - Supply/Demand
     - Price Action
+    - Supply/Demand
+    - Future AI analysis engines
     """
 
 
-    # Main states
+
+    # =====================
+    # Core analysis
+    # =====================
 
     trend: str
+
 
     momentum: str
 
@@ -73,22 +72,26 @@ class AnalysisResult:
     indicators: dict[str, Any]
 
 
+
+    # =====================
+    # Supply / Demand
+    # =====================
+
     supply_demand: Any = None
 
 
 
-    # =========================
-    # Advanced Scoring Inputs
-    # =========================
-
+    # =====================
+    # Advanced scores
+    # =====================
 
     trend_score: float = 0.0
 
 
-    structure_score: float = 0.0
-
-
     momentum_score: float = 0.0
+
+
+    structure_score: float = 0.0
 
 
     volatility_score: float = 0.0
@@ -98,10 +101,24 @@ class AnalysisResult:
 
 
 
-    # =========================
-    # Explanation Layer
-    # =========================
+    # Future engines
 
+    candlestick_score: float = 0.0
+
+
+    elliott_score: float = 0.0
+
+
+    harmonic_score: float = 0.0
+
+
+    wyckoff_score: float = 0.0
+
+
+
+    # =====================
+    # Explanation layer
+    # =====================
 
     reasons: list[str] = field(
         default_factory=list
@@ -114,9 +131,8 @@ class AnalysisResult:
 )
 class AnalysisReport:
     """
-    Final user-facing analysis report.
+    Final user-facing report.
     """
-
 
     trend: str
 
@@ -132,11 +148,6 @@ class AnalysisReport:
 
     confidence: float
 
-
-
-    # =========================
-    # Extended Information
-    # =========================
 
 
     reasons: list[str] = field(
