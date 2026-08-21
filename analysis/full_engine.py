@@ -34,6 +34,11 @@ from analysis.price_action_engine import (
 )
 
 
+from analysis.supply_demand_engine import (
+    SupplyDemandEngine,
+)
+
+
 
 class FullAnalysisEngine:
     """
@@ -45,6 +50,7 @@ class FullAnalysisEngine:
     - Indicators
     - Momentum
     - Price Action
+    - Supply / Demand
     - Scoring
     """
 
@@ -70,6 +76,11 @@ class FullAnalysisEngine:
 
         self.price_action_engine = (
             PriceActionEngine()
+        )
+
+
+        self.supply_demand_engine = (
+            SupplyDemandEngine()
         )
 
 
@@ -133,10 +144,23 @@ class FullAnalysisEngine:
 
 
         # =========================
+        # Supply Demand
+        # =========================
+
+        supply_demand_result = (
+            self.supply_demand_engine.analyze(
+                closes
+            )
+        )
+
+
+
+        # =========================
         # Build Analysis Result
         # =========================
 
         analysis_result = AnalysisResult(
+
 
             trend=structure.trend,
 
@@ -147,10 +171,15 @@ class FullAnalysisEngine:
             indicators=indicator_snapshot.values,
 
 
-            supply_demand=None,
+
+            supply_demand=(
+                supply_demand_result.zone
+            ),
+
 
 
             trend_score=0.0,
+
 
 
             momentum_score=(
@@ -158,16 +187,29 @@ class FullAnalysisEngine:
             ),
 
 
+
             structure_score=(
+
                 20
+
                 if structure.bos
+
                 else 0
+
             ),
+
+
+
+            volatility_score=0.0,
+
 
 
             price_action_score=(
+
                 price_action_result.score
+
             ),
+
 
 
             reasons=(
@@ -178,7 +220,16 @@ class FullAnalysisEngine:
 
                 price_action_result.reasons
 
+                +
+
+                [
+
+                    supply_demand_result.reason
+
+                ]
+
             ),
+
         )
 
 
