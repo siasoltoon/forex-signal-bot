@@ -274,14 +274,57 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
+        momentum_score = getattr(
+            result,
+            "momentum_score",
+            0.0,
+        )
+
+
+        if momentum_score != 0:
+
+            return SignalComponent(
+                name="momentum",
+                score=momentum_score,
+                reason="Momentum engine score.",
+            )
+
+
+
+        momentum = str(
+            getattr(
+                result,
+                "momentum",
+                "",
+            )
+        ).lower()
+
+
+
+        if momentum == "oversold":
+
+            return SignalComponent(
+                name="momentum",
+                score=20,
+                reason="Market is oversold.",
+            )
+
+
+
+        if momentum == "overbought":
+
+            return SignalComponent(
+                name="momentum",
+                score=-20,
+                reason="Market is overbought.",
+            )
+
+
+
         return SignalComponent(
             name="momentum",
-            score=getattr(
-                result,
-                "momentum_score",
-                0.0,
-            ),
-            reason="Momentum engine score.",
+            score=0.0,
+            reason="Neutral momentum.",
         )
 
 
