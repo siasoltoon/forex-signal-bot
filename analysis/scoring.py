@@ -234,7 +234,7 @@ class AnalysisScorer:
 
         return SignalComponent(
             name="trend",
-            score=0,
+            score=0.0,
             reason="No clear trend.",
         )
 
@@ -262,7 +262,7 @@ class AnalysisScorer:
         )
 
 
-
+    
     # =========================
     # Momentum
     # =========================
@@ -391,12 +391,12 @@ class AnalysisScorer:
 
         return SignalComponent(
             name="supply_demand",
-            score=0,
+            score=0.0,
             reason="Neutral supply demand.",
         )
 
 
-    
+
     # =========================
     # Price Action
     # =========================
@@ -546,14 +546,38 @@ class AnalysisScorer:
     ) -> SignalComponent:
 
 
+        score = getattr(
+            result,
+            "smart_money_score",
+            0.0,
+        )
+
+
+
+        if score > 0:
+
+            return SignalComponent(
+                name="smart_money",
+                score=score,
+                reason="Bullish Smart Money Concepts detected.",
+            )
+
+
+
+        if score < 0:
+
+            return SignalComponent(
+                name="smart_money",
+                score=score,
+                reason="Bearish Smart Money Concepts detected.",
+            )
+
+
+
         return SignalComponent(
             name="smart_money",
-            score=getattr(
-                result,
-                "smart_money_score",
-                0.0,
-            ),
-            reason="Smart Money Concepts score.",
+            score=0.0,
+            reason="No Smart Money signal detected.",
         )
 
 
