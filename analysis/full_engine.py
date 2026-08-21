@@ -66,6 +66,11 @@ from analysis.wyckoff_engine import (
 )
 
 
+from analysis.smc_engine import (
+    SMCEngine,
+)
+
+
 
 class FullAnalysisEngine:
     """
@@ -83,6 +88,7 @@ class FullAnalysisEngine:
     - Harmonic Patterns
     - Al Brooks Price Action
     - Wyckoff
+    - Smart Money Concepts
     - Scoring
     """
 
@@ -138,6 +144,11 @@ class FullAnalysisEngine:
 
         self.wyckoff_engine = (
             WyckoffEngine()
+        )
+
+
+        self.smc_engine = (
+            SMCEngine()
         )
 
 
@@ -291,6 +302,14 @@ class FullAnalysisEngine:
 
 
 
+        smc_result = (
+            self.smc_engine.analyze(
+                closes
+            )
+        )
+
+
+
         analysis_result = AnalysisResult(
 
 
@@ -374,6 +393,12 @@ class FullAnalysisEngine:
 
 
 
+            smc_score=(
+                smc_result.score
+            ),
+
+
+
             reasons=(
 
                 momentum_result.reasons
@@ -397,6 +422,8 @@ class FullAnalysisEngine:
                     brooks_result.reason,
 
                     wyckoff_result.reason,
+
+                    smc_result.reason,
 
                 ]
 
