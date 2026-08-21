@@ -17,23 +17,11 @@ logger = setup_logger()
 class FinnhubProvider(MarketDataProvider):
     """
     Production-grade Finnhub market data provider.
-
-    Responsibilities:
-    - Validate request parameters.
-    - Normalize supported timeframes.
-    - Calculate the required Unix timestamp range.
-    - Request candle data through FinnhubClient.
-    - Validate the API response.
-    - Convert valid candles into Candle models.
-    - Preserve chronological ordering.
-    - Return at most `limit` candles.
     """
 
     name = "finnhub"
 
-    _TIMEFRAME_ALIASES: Final[
-        dict[str, str]
-    ] = {
+    _TIMEFRAME_ALIASES: Final[dict[str, str]] = {
         "M1": "1",
         "M5": "5",
         "M15": "15",
@@ -47,9 +35,7 @@ class FinnhubProvider(MarketDataProvider):
         "1M": "M",
     }
 
-    _TIMEFRAME_MINUTES: Final[
-        dict[str, int]
-    ] = {
+    _TIMEFRAME_MINUTES: Final[dict[str, int]] = {
         "1": 1,
         "5": 5,
         "15": 15,
@@ -66,7 +52,6 @@ class FinnhubProvider(MarketDataProvider):
         self,
         client: FinnhubClient | None = None,
     ) -> None:
-
         self.client = (
             client
             if client is not None
@@ -78,7 +63,6 @@ class FinnhubProvider(MarketDataProvider):
         cls,
         timeframe: str,
     ) -> str:
-
         if not isinstance(
             timeframe,
             str,
@@ -103,11 +87,8 @@ class FinnhubProvider(MarketDataProvider):
         cls,
         timeframe: str,
     ) -> str:
-
-        normalized = (
-            cls._normalize_timeframe(
-                timeframe
-            )
+        normalized = cls._normalize_timeframe(
+            timeframe
         )
 
         if normalized not in cls._TIMEFRAME_MINUTES:
@@ -124,7 +105,6 @@ class FinnhubProvider(MarketDataProvider):
         timeframe: str,
         limit: int,
     ) -> None:
-
         if not isinstance(
             symbol,
             str,
@@ -176,11 +156,8 @@ class FinnhubProvider(MarketDataProvider):
         timeframe: str,
         limit: int,
     ) -> tuple[int, int]:
-
-        resolution = (
-            cls._validate_timeframe(
-                timeframe
-            )
+        resolution = cls._validate_timeframe(
+            timeframe
         )
 
         minutes = cls._TIMEFRAME_MINUTES[
@@ -215,7 +192,6 @@ class FinnhubProvider(MarketDataProvider):
     def _parse_timestamp(
         value: object,
     ) -> datetime:
-
         timestamp = int(value)
 
         if timestamp <= 0:
@@ -232,7 +208,6 @@ class FinnhubProvider(MarketDataProvider):
     def _parse_price(
         value: object,
     ) -> float:
-
         price = float(value)
 
         if price <= 0:
@@ -246,7 +221,6 @@ class FinnhubProvider(MarketDataProvider):
     def _parse_volume(
         value: object,
     ) -> float:
-
         volume = float(value)
 
         if volume < 0:
@@ -266,7 +240,6 @@ class FinnhubProvider(MarketDataProvider):
         close: object,
         volume: object,
     ) -> Candle | None:
-
         try:
             return Candle(
                 symbol=symbol,
@@ -295,7 +268,6 @@ class FinnhubProvider(MarketDataProvider):
             ValueError,
             OverflowError,
         ) as error:
-
             logger.warning(
                 "Skipping invalid Finnhub candle: %s",
                 error,
@@ -320,13 +292,13 @@ class FinnhubProvider(MarketDataProvider):
         )
 
         normalized_symbol = (
-            symbol.strip().upper()
+            symbol
+            .strip()
+            .upper()
         )
 
-        resolution = (
-            self._validate_timeframe(
-                timeframe
-            )
+        resolution = self._validate_timeframe(
+            timeframe
         )
 
         (
@@ -348,7 +320,6 @@ class FinnhubProvider(MarketDataProvider):
             )
 
         except Exception as error:
-
             logger.exception(
                 "Finnhub candle request failed "
                 "for %s.",
@@ -427,4 +398,92 @@ class FinnhubProvider(MarketDataProvider):
         )
 
         arrays = (
-            timestamps
+            timestamps,
+            opens,
+            highs,
+            lows,
+            closes,
+            volumes,
+        )
+
+        if not all(
+            isinstance(
+                value,
+                list,
+            )
+            for value in arrays
+        ):
+            raise ApplicationError(
+                "Invalid Finnhub candle payload.",
+                {
+                    "provider": self.name,
+                    "symbol": normalized_symbol,
+                },
+            )
+
+        lengths = {
+            len(timestamps),
+            len(opens),
+            len(highs),
+            len(lows),
+            len(closes),
+            len(volumes),
+        }
+
+        if len(lengths) != 1:
+            raise ApplicationError(
+                "Finnhub candle arrays have "
+                "inconsistent lengths.",
+                {
+                    "provider": self.name,
+                    "symbol": normalized_symbol,
+                },
+            )
+
+        candles: list[Candle] = []
+
+        for (
+            timestamp,
+            open_price,
+            high,
+            low,
+            close,
+            volume,
+        ) in zip(
+            timestamps,
+            opens,
+            highs,
+            lows,
+            closes,
+            volumes,
+        ):
+            candle = self._convert_candle(
+                symbol=normalized_symbol,
+                timestamp=timestamp,
+                open_price=open_price,
+                high=high,
+                low=low,
+                close=close,
+                volume=volume,
+            )
+
+            if candle is not None:
+                candles.append(
+                    candle
+                )
+
+        candles.sort(
+            key=lambda candle: candle.timestamp
+        )
+
+        if len(candles) > limit:
+            candles = candles[-limit:]
+
+        logger.info(
+            "Finnhub returned %d valid candles "
+            "for %s.",
+            len(candles),
+            normalized_symbol,
+        )
+
+        return candles
