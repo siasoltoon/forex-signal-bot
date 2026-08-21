@@ -94,7 +94,7 @@ from analysis.smc_engine import (
 
 class FullAnalysisEngine:
     """
-    Complete analysis pipeline.
+    Complete professional analysis pipeline.
 
     Includes:
 
@@ -104,15 +104,15 @@ class FullAnalysisEngine:
     - Price Action
     - Supply Demand
     - Candlestick
-    - Elliott
+    - Elliott Wave
     - Harmonic
     - Brooks
     - Wyckoff
-    - Smart Money
-    - Decision
-    - Confidence
+    - Smart Money Concepts
+    - Decision Engine
+    - Confidence Engine
     - ATR Volatility
-    - Risk Management
+    - Professional Risk Management
     """
 
 
@@ -175,35 +175,27 @@ class FullAnalysisEngine:
         )
 
 
-        # Decision
-
         self.decision_engine = (
             DecisionEngine()
         )
 
-
-        # Confidence
 
         self.confidence_engine = (
             ConfidenceEngine()
         )
 
 
-        # Risk
-
         self.risk_engine = (
             RiskEngine()
         )
 
-
-        # ATR
 
         self.atr_engine = (
             ATREngine()
         )
 
 
-
+    
     # ==================================================
     # Main Analysis
     # ==================================================
@@ -505,11 +497,7 @@ class FullAnalysisEngine:
 
 
 
-            volatility_score=(
-
-                atr_percentage
-
-            ),
+            volatility_score=atr_percentage,
 
 
 
@@ -700,7 +688,11 @@ class FullAnalysisEngine:
                 atr=atr_value,
 
 
-                confidence=confidence_result.confidence,
+                confidence=(
+
+                    confidence_result.confidence
+
+                ),
 
 
                 score=decision.score,
@@ -710,7 +702,7 @@ class FullAnalysisEngine:
         )
 
 
-
+        
         # ==================================================
         # Confidence Grade
         # ==================================================
@@ -741,6 +733,11 @@ class FullAnalysisEngine:
 
 
 
+
+        # ==================================================
+        # Structure Label
+        # ==================================================
+
         structure_name = (
 
             "BOS"
@@ -752,6 +749,87 @@ class FullAnalysisEngine:
             "NORMAL"
 
         )
+
+
+
+
+        # ==================================================
+        # Trade Quality Calculation
+        # ==================================================
+
+        trade_quality = (
+
+            min(
+
+                100,
+
+                max(
+
+                    0,
+
+                    int(
+
+                        (
+
+                            confidence_result.confidence
+
+                            *
+
+                            50
+
+                        )
+
+                        +
+
+                        (
+
+                            abs(
+
+                                decision.score
+
+                            )
+
+                            *
+
+                            0.5
+
+                        )
+
+                    )
+
+                )
+
+            )
+
+        )
+
+
+
+
+        if trade_quality >= 90:
+
+            trade_grade = "A+"
+
+
+        elif trade_quality >= 80:
+
+            trade_grade = "A"
+
+
+        elif trade_quality >= 70:
+
+            trade_grade = "B"
+
+
+        elif trade_quality >= 50:
+
+            trade_grade = "C"
+
+
+        else:
+
+            trade_grade = "D"
+
 
 
 
@@ -778,6 +856,8 @@ class FullAnalysisEngine:
 
 
 
+            # Confidence Layer
+
             agreement=confidence_result.agreement,
 
 
@@ -797,11 +877,13 @@ class FullAnalysisEngine:
 
 
 
+            # Decision Layer
+
             decision_bias=decision.bias,
 
 
 
-            # Risk Management
+            # Risk Layer
 
             risk_level=risk_result.risk_level,
 
@@ -815,11 +897,41 @@ class FullAnalysisEngine:
             take_profit=risk_result.take_profit,
 
 
+            take_profit_1=risk_result.take_profit_1,
+
+
+            take_profit_2=risk_result.take_profit_2,
+
+
+            take_profit_3=risk_result.take_profit_3,
+
+
             risk_reward=risk_result.risk_reward,
 
 
+            position_size=risk_result.position_size,
 
-            # Smart Money
+
+            risk_amount=risk_result.risk_amount,
+
+
+            trailing_stop=risk_result.trailing_stop,
+
+
+            market_condition=risk_result.market_condition,
+
+
+
+            # Trade Quality
+
+            trade_quality=trade_quality,
+
+
+            trade_grade=trade_grade,
+
+
+
+            # Smart Money Concepts
 
             smc_bias=smc_result.bias,
 
@@ -865,6 +977,12 @@ class FullAnalysisEngine:
 
 
                     f"ATR Percentage: {atr_percentage}",
+
+
+                    f"Market Condition: {risk_result.market_condition}",
+
+
+                    f"Trade Grade: {trade_grade}",
 
                 ]
 
