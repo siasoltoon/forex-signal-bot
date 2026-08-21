@@ -68,10 +68,15 @@ class DecisionEngine:
         weights: dict[str, float] | None = None,
     ) -> None:
 
+
         self.weights = (
+
             weights
+
             if weights
+
             else self.WEIGHTS.copy()
+
         )
 
 
@@ -96,24 +101,45 @@ class DecisionEngine:
         # Smart Money
         # -------------------------
 
-        smc_score = analysis.smart_money_score
+        smc_score = (
 
+            getattr(
+                analysis,
+                "smart_money_score",
+                0.0
+            )
 
-        score += (
-            smc_score
-            *
-            self.weights["smart_money"]
         )
 
 
-        if analysis.smc_bias.lower() == "bullish":
+        score += (
+
+            smc_score
+
+            *
+
+            self.weights["smart_money"]
+
+        )
+
+
+
+        smc_bias = getattr(
+            analysis,
+            "smc_bias",
+            "neutral"
+        )
+
+
+
+        if smc_bias.lower() == "bullish":
 
             reasons.append(
                 "Smart Money bullish bias"
             )
 
 
-        elif analysis.smc_bias.lower() == "bearish":
+        elif smc_bias.lower() == "bearish":
 
             reasons.append(
                 "Smart Money bearish bias"
@@ -125,14 +151,23 @@ class DecisionEngine:
         # Structure
         # -------------------------
 
-        structure_score = analysis.structure_score
+        structure_score = getattr(
+            analysis,
+            "structure_score",
+            0.0
+        )
 
 
         score += (
+
             structure_score
+
             *
+
             self.weights["structure"]
+
         )
+
 
 
         if structure_score > 0:
@@ -147,19 +182,29 @@ class DecisionEngine:
         # Price Action
         # -------------------------
 
-        score += (
-            analysis.price_action_score
-            *
-            self.weights["price_action"]
+        price_action_score = getattr(
+            analysis,
+            "price_action_score",
+            0.0
         )
 
 
-        if analysis.price_action_score > 0:
+        score += (
+
+            price_action_score
+
+            *
+
+            self.weights["price_action"]
+
+        )
+
+
+        if price_action_score > 0:
 
             reasons.append(
                 "Price action confirmation"
             )
-
 
 
         # -------------------------
@@ -167,9 +212,17 @@ class DecisionEngine:
         # -------------------------
 
         score += (
-            analysis.trend_score
+
+            getattr(
+                analysis,
+                "trend_score",
+                0.0
+            )
+
             *
+
             self.weights["supply_demand"]
+
         )
 
 
@@ -179,35 +232,67 @@ class DecisionEngine:
         # -------------------------
 
         score += (
-            analysis.momentum_score
+
+            getattr(
+                analysis,
+                "momentum_score",
+                0.0
+            )
+
             *
+
             self.weights["indicators"]
+
         )
 
 
 
         # -------------------------
-        # Patterns
+        # Pattern Engines
         # -------------------------
 
         score += (
-            analysis.elliott_score
+
+            getattr(
+                analysis,
+                "elliott_score",
+                0.0
+            )
+
             *
+
             self.weights["elliott"]
+
         )
 
 
         score += (
-            analysis.harmonic_score
+
+            getattr(
+                analysis,
+                "harmonic_score",
+                0.0
+            )
+
             *
+
             self.weights["harmonic"]
+
         )
 
 
         score += (
-            analysis.wyckoff_score
+
+            getattr(
+                analysis,
+                "wyckoff_score",
+                0.0
+            )
+
             *
+
             self.weights["wyckoff"]
+
         )
 
 
@@ -217,18 +302,23 @@ class DecisionEngine:
         # ==================================================
 
         score = max(
+
             0,
+
             min(
+
                 100,
+
                 score
+
             )
+
         )
 
 
 
         # ==================================================
         # Signal
-        # فقط سه حالت خروجی
         # ==================================================
 
         if score >= 60:
@@ -249,20 +339,28 @@ class DecisionEngine:
 
         # ==================================================
         # Confidence
-        # خروجی بین 0 و 1
         # ==================================================
 
         confidence = abs(
+
             score - 50
+
         ) / 50
 
 
+
         confidence = max(
+
             0,
+
             min(
+
                 1,
+
                 confidence
+
             )
+
         )
 
 
@@ -287,14 +385,20 @@ class DecisionEngine:
 
 
             score=round(
+
                 score,
+
                 2
+
             ),
 
 
             confidence=round(
+
                 confidence,
+
                 3
+
             ),
 
 
