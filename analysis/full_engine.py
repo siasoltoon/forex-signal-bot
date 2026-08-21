@@ -36,6 +36,11 @@ from analysis.risk_engine import (
 )
 
 
+from analysis.atr_engine import (
+    ATREngine,
+)
+
+
 from analysis.indicator_engine import (
     IndicatorEngine,
 )
@@ -106,6 +111,7 @@ class FullAnalysisEngine:
     - Smart Money
     - Decision
     - Confidence
+    - ATR Volatility
     - Risk Management
     """
 
@@ -170,18 +176,34 @@ class FullAnalysisEngine:
 
 
 
+        # Decision Layer
+
         self.decision_engine = (
             DecisionEngine()
         )
 
+
+
+        # Confidence Layer
 
         self.confidence_engine = (
             ConfidenceEngine()
         )
 
 
+
+        # Risk Layer
+
         self.risk_engine = (
             RiskEngine()
+        )
+
+
+
+        # ATR Volatility Layer
+
+        self.atr_engine = (
+            ATREngine()
         )
 
 
@@ -257,6 +279,22 @@ class FullAnalysisEngine:
                 for price in closes
 
             ]
+
+
+
+        # ==================================================
+        # ATR Calculation
+        # ==================================================
+
+        atr_result = (
+
+            self.atr_engine.calculate(
+
+                closes
+
+            )
+
+        )
 
 
 
@@ -405,7 +443,11 @@ class FullAnalysisEngine:
 
 
 
-            volatility_score=0.0,
+            volatility_score=(
+
+                atr_result.atr_percentage
+
+            ),
 
 
 
@@ -589,7 +631,17 @@ class FullAnalysisEngine:
 
                 signal=decision.signal,
 
+
                 current_price=closes[-1],
+
+
+                atr=atr_result.atr,
+
+
+                confidence=confidence_result.confidence,
+
+
+                score=decision.score,
 
             )
 
@@ -748,7 +800,11 @@ class FullAnalysisEngine:
 
                 [
 
-                    risk_result.reason
+                    risk_result.reason,
+
+                    f"ATR: {atr_result.atr}",
+
+                    f"Volatility: {atr_result.volatility}",
 
                 ]
 
