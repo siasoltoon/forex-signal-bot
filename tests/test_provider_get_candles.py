@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
@@ -15,7 +16,7 @@ def expected_candles() -> list[Candle]:
     return [
         Candle(
             symbol="EURUSD",
-            timestamp="2026-01-01T00:01:00+00:00",
+            timestamp=datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc),
             open=1.1000,
             high=1.1010,
             low=1.0990,
@@ -24,7 +25,7 @@ def expected_candles() -> list[Candle]:
         ),
         Candle(
             symbol="EURUSD",
-            timestamp="2026-01-01T00:02:00+00:00",
+            timestamp=datetime(2026, 1, 1, 0, 2, tzinfo=timezone.utc),
             open=1.1005,
             high=1.1020,
             low=1.1000,
