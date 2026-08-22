@@ -1,0 +1,53 @@
+name: Automation Runner v2
+
+on:
+  pull_request_target:
+    branches:
+      - main
+    types: [opened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  runner-probe:
+    if: github.event.pull_request.head.ref == 'chore/explicit-provider-contract' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: chore/explicit-provider-contract
+          fetch-depth: 0
+
+      - name: Verify runner
+        run: |
+          set -euo pipefail
+          echo "Runner: $(uname -a)"
+          echo "Python: $(python --version)"
+          echo "Git: $(git --version)"
+          git status --short
+          git rev-parse HEAD
+
+      - name: Modify repository from runner
+        env:
+          RUN_ID: ${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p automation
+          cat > automation/runner_probe.txt <<EOF
+Automation Runner v2 probe
+run_id=$RUN_ID
+workflow_sha=$SHA
+runner_commit=$(git rev-parse HEAD)
+EOF
+
+      - name: Commit and push runner change
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add automation/runner_probe.txt
+          git commit -m 'chore: verify automation runner write path'
+          git push origin chore/explicit-provider-contract
