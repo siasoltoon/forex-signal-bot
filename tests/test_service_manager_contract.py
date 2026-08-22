@@ -12,12 +12,12 @@ class RecordingService(BaseService):
         self.fail_stop = fail_stop
         self.fail_health = fail_health
 
-    def start(self) -> None:
+    async def start(self) -> None:
         self.events.append(f"start:{self.name}")
         if self.fail_start:
             raise RuntimeError(f"start failed: {self.name}")
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         self.events.append(f"stop:{self.name}")
         if self.fail_stop:
             raise RuntimeError(f"stop failed: {self.name}")
