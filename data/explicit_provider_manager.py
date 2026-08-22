@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from core.errors import ApplicationError
 from data.base import MarketDataProvider
 from data.models import Candle
 from data.provider_manager import ProviderManager
@@ -22,7 +23,7 @@ class ExplicitProviderManager(ProviderManager):
     ) -> list[Candle]:
         """Fetch one provider without fallback and allow an empty result."""
         if not provider.is_configured():
-            raise ValueError(
+            raise ApplicationError(
                 f"Market data provider is not configured: {provider.name}"
             )
 
