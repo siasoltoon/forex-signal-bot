@@ -76,7 +76,10 @@ class FreshnessPolicy:
         if age < timedelta(0):
             raise ValueError("timestamp cannot be in the future.")
 
-        if age <= warning:
+        # Thresholds are inclusive at the upper edge of each state. This makes
+        # the boundary deterministic: warning_after itself is WARNING, while
+        # stale_after itself remains WARNING and reject_after itself remains STALE.
+        if age < warning:
             status = cls.FRESH
         elif age <= stale:
             status = cls.WARNING
