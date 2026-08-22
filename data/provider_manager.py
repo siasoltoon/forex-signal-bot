@@ -780,7 +780,7 @@ class ProviderManager:
                 Candle,
             ):
                 raise ApplicationError(
-                    "Provider returned an invalid candle.",
+                    "Provider returned invalid candle data.",
                     {
                         "provider": provider_name,
                         "symbol": symbol,
@@ -1082,4 +1082,3 @@ __all__ = [
     "ProviderFailure",
     "ProviderManager",
 ]
-
