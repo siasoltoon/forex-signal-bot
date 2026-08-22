@@ -50,7 +50,7 @@ def make_candle(
             tzinfo=timezone.utc,
         ),
         open=1.0900,
-        high=1.1100,
+        high=max(1.1100, close),
         low=1.0800,
         close=close,
         volume=100.0,
