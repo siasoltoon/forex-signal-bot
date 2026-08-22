@@ -56,3 +56,5 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "Add explicit provider delegation contract"
           git push origin "$BRANCH"
+
+# trigger retry
