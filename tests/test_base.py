@@ -111,7 +111,7 @@ def test_apply_limit_keeps_newest_candles():
 
 
 def test_normalize_timeframe():
-    assert DummyProvider.normalize_timeframe(" 15m ") == "15M"
+    assert DummyProvider.normalize_timeframe(" 15m ") == "M15"
     assert DummyProvider.normalize_timeframe("1h") == "H1"
     assert DummyProvider.normalize_timeframe("1day") == "D1"
 
