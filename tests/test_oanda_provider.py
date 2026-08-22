@@ -13,14 +13,23 @@ class FakeClient:
         self.error = error
         self.calls = []
 
-    async def get_candles(self, symbol, timeframe, limit):
-        self.calls.append((symbol, timeframe, limit))
+    async def get_candles(self, *, instrument, granularity, count):
+        self.calls.append((instrument, granularity, count))
         if self.error is not None:
             raise self.error
         return self.result
 
 
-def raw_candle(ts, *, complete=True, open="1.10", high="1.12", low="1.09", close="1.11", volume="100"):
+def raw_candle(
+    ts,
+    *,
+    complete=True,
+    open="1.10",
+    high="1.12",
+    low="1.09",
+    close="1.11",
+    volume="100",
+):
     return {
         "time": ts,
         "complete": complete,
@@ -29,20 +38,26 @@ def raw_candle(ts, *, complete=True, open="1.10", high="1.12", low="1.09", close
     }
 
 
+def response(*candles):
+    return {"candles": list(candles)}
+
+
 @pytest.mark.asyncio
-async def test_get_candles_forwards_normalized_request(monkeypatch):
-    client = FakeClient(result=[])
+async def test_get_candles_forwards_normalized_request():
+    client = FakeClient(result=response())
     provider = OandaProvider(client=client)
 
-    result = await provider.get_candles(" eur_usd ", "15m", limit=10)
+    result = await provider.get_candles(" eur_usd ", "M15", limit=10)
 
     assert result == []
     assert client.calls == [("EUR_USD", "M15", 10)]
 
 
 @pytest.mark.asyncio
-async def test_get_candles_maps_valid_oanda_candles_to_candle(monkeypatch):
-    client = FakeClient(result=[raw_candle("2026-01-01T00:00:00Z")])
+async def test_get_candles_maps_valid_oanda_candles_to_candle():
+    client = FakeClient(
+        result=response(raw_candle("2026-01-01T00:00:00Z"))
+    )
     provider = OandaProvider(client=client)
 
     result = await provider.get_candles("EUR_USD", "M15", 10)
@@ -61,24 +76,26 @@ async def test_get_candles_maps_valid_oanda_candles_to_candle(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_candles_skips_incomplete_candles():
     client = FakeClient(
-        result=[
+        result=response(
             raw_candle("2026-01-01T00:00:00Z", complete=False),
             raw_candle("2026-01-01T00:15:00Z"),
-        ]
+        )
     )
     provider = OandaProvider(client=client)
 
     result = await provider.get_candles("EUR_USD", "M15", 10)
 
     assert len(result) == 1
-    assert result[0].timestamp == datetime(2026, 1, 1, 0, 15, tzinfo=timezone.utc)
+    assert result[0].timestamp == datetime(
+        2026, 1, 1, 0, 15, tzinfo=timezone.utc
+    )
 
 
 @pytest.mark.asyncio
 async def test_get_candles_deduplicates_and_sorts():
     candle_a = raw_candle("2026-01-01T00:00:00Z")
     candle_b = raw_candle("2026-01-01T00:15:00Z")
-    client = FakeClient(result=[candle_b, candle_a, candle_b])
+    client = FakeClient(result=response(candle_b, candle_a, candle_b))
     provider = OandaProvider(client=client)
 
     result = await provider.get_candles("EUR_USD", "M15", 10)
@@ -92,18 +109,20 @@ async def test_get_candles_deduplicates_and_sorts():
 @pytest.mark.asyncio
 async def test_get_candles_applies_limit():
     client = FakeClient(
-        result=[
+        result=response(
             raw_candle("2026-01-01T00:00:00Z"),
             raw_candle("2026-01-01T00:15:00Z"),
             raw_candle("2026-01-01T00:30:00Z"),
-        ]
+        )
     )
     provider = OandaProvider(client=client)
 
     result = await provider.get_candles("EUR_USD", "M15", 2)
 
     assert len(result) == 2
-    assert result[-1].timestamp == datetime(2026, 1, 1, 0, 30, tzinfo=timezone.utc)
+    assert result[-1].timestamp == datetime(
+        2026, 1, 1, 0, 30, tzinfo=timezone.utc
+    )
 
 
 @pytest.mark.asyncio
@@ -117,7 +136,7 @@ async def test_get_candles_wraps_client_errors():
 
 @pytest.mark.asyncio
 async def test_get_candles_rejects_invalid_request():
-    client = FakeClient(result=[])
+    client = FakeClient(result=response())
     provider = OandaProvider(client=client)
 
     with pytest.raises((TypeError, ValueError, ApplicationError)):
