@@ -1,0 +1,51 @@
+name: Automation Runner Control
+
+on:
+  pull_request_target:
+    branches:
+      - main
+    types: [opened, synchronize]
+    paths:
+      - '.github/workflows/automation-runner-control.yml'
+      - '.github/workflows/apply-explicit-provider-contract.yml'
+      - '.github/workflows/automation-runner-v3.yml'
+      - '.gitignore'
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Verify and write
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          echo "Runner: $(uname -a)"
+          echo "Python: $(python --version)"
+          echo "Git: $(git --version)"
+          mkdir -p automation
+          cat > automation/runner_probe.txt <<EOF
+Automation Runner Control probe
+run_id=$RUN_ID
+head=$(git rev-parse HEAD)
+EOF
+          git status --short
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add automation/runner_probe.txt
+          git commit -m 'chore: automation runner control probe'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
