@@ -75,12 +75,13 @@ async def test_get_candles_supports_hour_resolution():
 
 
 @pytest.mark.asyncio
-async def test_get_candles_rejects_invalid_response_status():
+async def test_get_candles_logs_invalid_response_status_and_returns_empty():
     client = FakeClient(result=response([1_700_000_000], status="no_data"))
     provider = FinnhubProvider(client=client)
 
-    with pytest.raises((ValueError, ApplicationError)):
-        await provider.get_candles("EUR_USD", "M15", 10)
+    result = await provider.get_candles("EUR_USD", "M15", 10)
+
+    assert result == []
 
 
 @pytest.mark.asyncio
