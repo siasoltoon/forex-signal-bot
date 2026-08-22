@@ -13,8 +13,8 @@ class FakeClient:
         self.error = error
         self.calls = []
 
-    async def get_candles(self, symbol, resolution, from_ts, to_ts):
-        self.calls.append((symbol, resolution, from_ts, to_ts))
+    async def get_candles(self, symbol, resolution, from_timestamp, to_timestamp):
+        self.calls.append((symbol, resolution, from_timestamp, to_timestamp))
         if self.error is not None:
             raise self.error
         return self.result
@@ -33,7 +33,7 @@ def response(ts, *, status="ok", opens=None, highs=None, lows=None, closes=None,
 
 
 @pytest.mark.asyncio
-async def test_get_candles_forwards_normalized_request(monkeypatch):
+async def test_get_candles_forwards_normalized_request():
     client = FakeClient(result=response([1_700_000_000]))
     provider = FinnhubProvider(client=client)
 
