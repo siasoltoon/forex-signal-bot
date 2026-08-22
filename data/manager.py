@@ -13,14 +13,7 @@ logger = setup_logger()
 
 
 class DataManager:
-    """Central orchestration layer for market-data providers.
-
-    This class owns provider registration and selection, request validation,
-    candle normalization, and the explicit multi-provider fallback API.
-
-    Provider-specific API details stay inside the concrete providers and the
-    ProviderManager layer. The rest of the application only sees Candle data.
-    """
+    """Central orchestration layer for market-data providers."""
 
     DEFAULT_LIMIT = MarketDataProvider.DEFAULT_LIMIT
     MAX_LIMIT = MarketDataProvider.MAX_LIMIT
@@ -32,16 +25,9 @@ class DataManager:
         self.providers: dict[str, MarketDataProvider] = {}
         self.default_provider = default_provider
 
-    # ------------------------------------------------------------------
-    # Provider registration
-    # ------------------------------------------------------------------
-
     def register(self, provider: MarketDataProvider) -> None:
-        """Register one provider and assign the first provider as default."""
         if not isinstance(provider, MarketDataProvider):
-            raise TypeError(
-                "provider must implement MarketDataProvider."
-            )
+            raise TypeError("provider must implement MarketDataProvider.")
 
         name = getattr(provider, "name", None)
         if not isinstance(name, str):
@@ -50,95 +36,54 @@ class DataManager:
         name = self._normalize_provider_name(name)
 
         if name in self.providers:
-            raise ApplicationError(
-                f"Provider already registered: {name}"
-            )
+            raise ApplicationError(f"Provider already registered: {name}")
 
         self.providers[name] = provider
-
         if self.default_provider is None:
             self.default_provider = name
 
-        logger.info(
-            "Market data provider registered: %s",
-            name,
-        )
+        logger.info("Market data provider registered: %s", name)
 
     def unregister(self, name: str) -> None:
-        """Remove a provider and repair the default-provider selection."""
         normalized_name = self._normalize_provider_name(name)
-
         if normalized_name not in self.providers:
             raise ApplicationError(
                 f"Market data provider not found: {normalized_name}"
             )
 
         del self.providers[normalized_name]
-
         if self.default_provider == normalized_name:
-            self.default_provider = next(
-                iter(self.providers),
-                None,
-            )
+            self.default_provider = next(iter(self.providers), None)
 
-        logger.info(
-            "Market data provider removed: %s",
-            normalized_name,
-        )
-
-    # ------------------------------------------------------------------
-    # Provider lookup
-    # ------------------------------------------------------------------
+        logger.info("Market data provider removed: %s", normalized_name)
 
     def has_provider(self, name: str) -> bool:
-        """Return whether a provider is registered."""
-        normalized_name = self._normalize_provider_name(name)
-        return normalized_name in self.providers
+        return self._normalize_provider_name(name) in self.providers
 
     def get_provider(self, name: str) -> MarketDataProvider:
-        """Return a registered provider or raise an application error."""
         normalized_name = self._normalize_provider_name(name)
         provider = self.providers.get(normalized_name)
-
         if provider is None:
             raise ApplicationError(
                 f"Market data provider not found: {normalized_name}"
             )
-
         return provider
 
-    # ------------------------------------------------------------------
-    # Default provider
-    # ------------------------------------------------------------------
-
     def set_default_provider(self, name: str) -> None:
-        """Set an already registered provider as the default."""
         normalized_name = self._normalize_provider_name(name)
-
         if normalized_name not in self.providers:
             raise ApplicationError(
                 f"Cannot set unknown provider as default: {normalized_name}"
             )
-
         self.default_provider = normalized_name
-
-        logger.info(
-            "Default market data provider set to: %s",
-            normalized_name,
-        )
+        logger.info("Default market data provider set to: %s", normalized_name)
 
     def get_default_provider(self) -> MarketDataProvider:
-        """Return the configured default provider."""
         if not self.default_provider:
             raise ApplicationError(
                 "No default market data provider has been configured."
             )
-
         return self.get_provider(self.default_provider)
-
-    # ------------------------------------------------------------------
-    # Candle retrieval
-    # ------------------------------------------------------------------
 
     async def get_candles(
         self,
@@ -147,11 +92,6 @@ class DataManager:
         timeframe: str,
         limit: int = DEFAULT_LIMIT,
     ) -> list[Candle]:
-        """Fetch candles from one selected provider.
-
-        Provider output is normalized into a deterministic chronological
-        sequence before it crosses this layer's boundary.
-        """
         symbol, timeframe, limit = self._validate_request(
             symbol=symbol,
             timeframe=timeframe,
@@ -212,12 +152,7 @@ class DataManager:
             symbol,
             provider.name,
         )
-
         return normalized
-
-    # ------------------------------------------------------------------
-    # Explicit fallback
-    # ------------------------------------------------------------------
 
     async def get_candles_with_fallback(
         self,
@@ -226,11 +161,6 @@ class DataManager:
         limit: int = DEFAULT_LIMIT,
         providers: Sequence[str] | None = None,
     ) -> list[Candle]:
-        """Try providers in order until one returns usable candles.
-
-        An empty result is treated as an unsuccessful provider response so
-        that the next provider can be attempted.
-        """
         symbol, timeframe, limit = self._validate_request(
             symbol=symbol,
             timeframe=timeframe,
@@ -246,9 +176,7 @@ class DataManager:
             ]
 
         if not provider_names:
-            raise ApplicationError(
-                "No market data providers are available."
-            )
+            raise ApplicationError("No market data providers are available.")
 
         errors: dict[str, str] = {}
 
@@ -273,7 +201,6 @@ class DataManager:
                     symbol=symbol,
                     limit=limit,
                 )
-
                 if not normalized:
                     raise ValueError("Provider returned no candles.")
 
@@ -282,7 +209,6 @@ class DataManager:
                     provider_name,
                 )
                 return normalized
-
             except Exception as error:
                 errors[provider_name] = str(error)
                 logger.warning(
@@ -301,21 +227,11 @@ class DataManager:
             },
         )
 
-    # ------------------------------------------------------------------
-    # Provider information
-    # ------------------------------------------------------------------
-
     def list_providers(self) -> list[str]:
-        """Return registered provider names in registration order."""
         return list(self.providers)
 
     def provider_count(self) -> int:
-        """Return the number of registered providers."""
         return len(self.providers)
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _normalize_provider_name(name: str) -> str:
@@ -324,7 +240,7 @@ class DataManager:
 
         normalized = name.strip().lower()
         if not normalized:
-            raise ValueError("Provider name cannot be empty.")
+            raise ApplicationError("Provider name cannot be empty.")
 
         return normalized
 
@@ -335,7 +251,6 @@ class DataManager:
         timeframe: str,
         limit: int,
     ) -> tuple[str, str, int]:
-        """Validate and normalize the common market-data request."""
         if not isinstance(symbol, str):
             raise TypeError("symbol must be a string.")
 
@@ -355,9 +270,7 @@ class DataManager:
             raise ValueError("limit must be greater than zero.")
 
         if limit > cls.MAX_LIMIT:
-            raise ValueError(
-                f"limit cannot exceed {cls.MAX_LIMIT}."
-            )
+            raise ValueError(f"limit cannot exceed {cls.MAX_LIMIT}.")
 
         return symbol, timeframe, limit
 
@@ -369,7 +282,6 @@ class DataManager:
         symbol: str,
         limit: int,
     ) -> list[Candle]:
-        """Validate, sort, deduplicate, and limit provider candle output."""
         if not isinstance(candles, list):
             raise TypeError("Provider must return a list of candles.")
 
@@ -379,10 +291,7 @@ class DataManager:
             deduplicate=True,
         )
 
-        return MarketDataProvider.apply_limit(
-            normalized,
-            limit,
-        )
+        return MarketDataProvider.apply_limit(normalized, limit)
 
 
 __all__ = ["DataManager"]
