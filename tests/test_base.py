@@ -110,10 +110,42 @@ def test_apply_limit_keeps_newest_candles():
     assert DummyProvider.apply_limit(candles, 10) == candles
 
 
-def test_normalize_timeframe():
-    assert DummyProvider.normalize_timeframe(" 15m ") == "M15"
+@pytest.mark.parametrize(
+    ("input_timeframe", "expected"),
+    [
+        ("M1", "M1"),
+        ("1m", "M1"),
+        (" M5 ", "M5"),
+        ("5m", "M5"),
+        ("M15", "M15"),
+        (" 15m ", "M15"),
+        ("M30", "M30"),
+        ("30m", "M30"),
+        ("H1", "H1"),
+        ("1h", "H1"),
+        ("1hr", "H1"),
+        ("1day", "D1"),
+        ("1d", "D1"),
+        ("1w", "W1"),
+        ("1week", "W1"),
+        ("D1", "D1"),
+        ("W1", "W1"),
+    ],
+)
+def test_normalize_timeframe_contract(input_timeframe, expected):
+    assert DummyProvider.normalize_timeframe(input_timeframe) == expected
+
+
+@pytest.mark.parametrize("timeframe", ["", "   ", None, 123])
+def test_normalize_timeframe_rejects_invalid_value(timeframe):
+    with pytest.raises((TypeError, ValueError)):
+        DummyProvider.normalize_timeframe(timeframe)
+
+
+def test_normalize_timeframe_does_not_confuse_minute_and_hour_aliases():
+    assert DummyProvider.normalize_timeframe("15m") == "M15"
     assert DummyProvider.normalize_timeframe("1h") == "H1"
-    assert DummyProvider.normalize_timeframe("1day") == "D1"
+    assert DummyProvider.normalize_timeframe("1d") == "D1"
 
 
 def test_default_configuration_is_true():
