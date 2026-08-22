@@ -18,3 +18,5 @@ env/
 .mypy_cache/
 
 .DS_Store
+
+# automation-runner probe
