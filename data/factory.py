@@ -1,8 +1,8 @@
+
 from __future__ import annotations
 
 from collections.abc import Mapping
-from threading import RLock
-from typing import TypeAlias
+from typing import Final
 
 from core.errors import ApplicationError
 from data.base import MarketDataProvider
@@ -11,131 +11,104 @@ from data.providers.finnhub_provider import FinnhubProvider
 from data.providers.oanda_provider import OandaProvider
 
 
-ProviderClass: TypeAlias = type[MarketDataProvider]
-
-
 class ProviderFactory:
     """
-    Central factory for market-data providers.
+    Central factory and registry for market-data providers.
 
-    Responsibilities:
-    - Register available providers.
-    - Create providers by name.
-    - Normalize provider names.
-    - Support provider aliases.
-    - Expose available providers.
-    - Allow future runtime registration.
-    - Keep backward compatibility with the existing project API.
+    The factory provides a single stable entry point for creating
+    market-data providers while keeping the concrete implementations
+    isolated from the rest of the application.
 
-    Existing usage remains valid:
+    Existing API remains compatible:
 
         ProviderFactory.create("oanda")
         ProviderFactory.create("finnhub")
         ProviderFactory.create("alphavantage")
 
-        ProviderFactory.available()
+    New providers can be registered dynamically without changing the
+    factory's core creation logic.
     """
 
     # ------------------------------------------------------------------
-    # Built-in providers
+    # Provider registry
     # ------------------------------------------------------------------
 
-    _providers: dict[str, ProviderClass] = {
+    _providers: dict[
+        str,
+        type[MarketDataProvider],
+    ] = {
         "oanda": OandaProvider,
         "finnhub": FinnhubProvider,
         "alphavantage": AlphaVantageProvider,
     }
 
     # ------------------------------------------------------------------
-    # Aliases
+    # Provider aliases
     #
-    # These do not replace the original provider names.
-    # They simply make provider selection more flexible.
+    # These aliases are normalized into canonical provider names.
     # ------------------------------------------------------------------
 
-    _aliases: dict[str, str] = {
+    _aliases: Final[
+        dict[str, str]
+    ] = {
         "oanda": "oanda",
-        "oanda-api": "oanda",
-        "oanda_api": "oanda",
 
         "finnhub": "finnhub",
-        "finnhub-api": "finnhub",
-        "finnhub_api": "finnhub",
 
         "alphavantage": "alphavantage",
-        "alpha-vantage": "alphavantage",
         "alpha_vantage": "alphavantage",
-        "alphavantage-api": "alphavantage",
-        "alphavantage_api": "alphavantage",
+        "alpha-vantage": "alphavantage",
+        "alpha vantage": "alphavantage",
     }
 
     # ------------------------------------------------------------------
-    # Thread safety
+    # Default provider
     # ------------------------------------------------------------------
 
-    _lock = RLock()
+    _default_provider: str = "oanda"
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Name normalization
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _normalize_name(provider_name: str) -> str:
+    @classmethod
+    def normalize_name(
+        cls,
+        provider_name: str,
+    ) -> str:
         """
-        Normalize a provider name.
+        Normalize a provider name into its canonical name.
 
         Examples:
 
             " OANDA "       -> "oanda"
             "FinnHub"       -> "finnhub"
-            "alpha-vantage" -> "alpha-vantage"
+            "Alpha-Vantage" -> "alphavantage"
+            "alpha_vantage" -> "alphavantage"
         """
 
-        if not isinstance(provider_name, str):
+        if not isinstance(
+            provider_name,
+            str,
+        ):
             raise TypeError(
                 "provider_name must be a string."
             )
 
-        normalized = provider_name.strip().lower()
-
-        if not normalized:
-            raise ApplicationError(
-                "Provider name cannot be empty.",
-                {
-                    "provider": provider_name,
-                },
-            )
-
-        return normalized
-
-    @classmethod
-    def _resolve_name(cls, provider_name: str) -> str:
-        """
-        Resolve a provider name or alias to its canonical name.
-        """
-
-        normalized_name = cls._normalize_name(
+        normalized = (
             provider_name
+            .strip()
+            .lower()
         )
 
-        with cls._lock:
-            canonical_name = cls._aliases.get(
-                normalized_name
+        if not normalized:
+            raise ValueError(
+                "provider_name cannot be empty."
             )
 
-            if canonical_name is not None:
-                return canonical_name
-
-            if normalized_name in cls._providers:
-                return normalized_name
-
-        raise ApplicationError(
-            "Unknown market data provider.",
-            {
-                "provider": provider_name,
-                "normalized": normalized_name,
-                "available": cls.available(),
-            },
+        return cls._aliases.get(
+            normalized,
+            normalized,
         )
 
     # ------------------------------------------------------------------
@@ -148,45 +121,47 @@ class ProviderFactory:
         provider_name: str,
     ) -> MarketDataProvider:
         """
-        Create a market-data provider instance by name.
+        Create a market-data provider instance.
 
-        Backward-compatible examples:
+        Provider names are normalized before lookup.
 
-            ProviderFactory.create("oanda")
-            ProviderFactory.create("finnhub")
-            ProviderFactory.create("alphavantage")
+        Raises:
+            TypeError:
+                provider_name is not a string.
 
-        Aliases are also accepted.
+            ValueError:
+                provider_name is empty.
+
+            ApplicationError:
+                Provider is not registered.
         """
 
-        canonical_name = cls._resolve_name(
+        normalized_name = cls.normalize_name(
             provider_name
         )
 
-        with cls._lock:
-            provider_class = cls._providers.get(
-                canonical_name
-            )
+        provider_class = cls._providers.get(
+            normalized_name
+        )
 
         if provider_class is None:
             raise ApplicationError(
-                "Provider is registered but unavailable.",
+                "Unknown market data provider.",
                 {
                     "provider": provider_name,
-                    "canonical_name": canonical_name,
+                    "normalized_provider": normalized_name,
                     "available": cls.available(),
                 },
             )
 
         try:
             provider = provider_class()
-        except ApplicationError:
-            raise
         except Exception as exc:
             raise ApplicationError(
                 "Failed to initialize market data provider.",
                 {
-                    "provider": canonical_name,
+                    "provider": normalized_name,
+                    "provider_class": provider_class.__name__,
                     "error": str(exc),
                 },
             ) from exc
@@ -196,45 +171,100 @@ class ProviderFactory:
             MarketDataProvider,
         ):
             raise ApplicationError(
-                "Registered provider is not a valid "
+                "Registered provider does not implement "
                 "MarketDataProvider.",
                 {
-                    "provider": canonical_name,
-                    "class": provider_class.__name__,
+                    "provider": normalized_name,
+                    "provider_class": provider_class.__name__,
                 },
             )
 
         return provider
 
     # ------------------------------------------------------------------
-    # Provider registration
+    # Default provider
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def create_default(
+        cls,
+    ) -> MarketDataProvider:
+        """
+        Create the configured default provider.
+
+        The default currently remains OANDA for backward compatibility.
+        """
+
+        return cls.create(
+            cls._default_provider
+        )
+
+    @classmethod
+    def default_name(
+        cls,
+    ) -> str:
+        """
+        Return the canonical name of the default provider.
+        """
+
+        return cls._default_provider
+
+    @classmethod
+    def set_default(
+        cls,
+        provider_name: str,
+    ) -> None:
+        """
+        Change the default provider.
+
+        The provider must already be registered.
+        """
+
+        normalized_name = cls.normalize_name(
+            provider_name
+        )
+
+        if normalized_name not in cls._providers:
+            raise ApplicationError(
+                "Cannot set an unregistered provider "
+                "as the default provider.",
+                {
+                    "provider": provider_name,
+                    "available": cls.available(),
+                },
+            )
+
+        cls._default_provider = normalized_name
+
+    # ------------------------------------------------------------------
+    # Registry management
     # ------------------------------------------------------------------
 
     @classmethod
     def register(
         cls,
-        name: str,
-        provider_class: ProviderClass,
+        provider_name: str,
+        provider_class: type[MarketDataProvider],
         *,
-        aliases: tuple[str, ...] = (),
         overwrite: bool = False,
     ) -> None:
         """
-        Register a provider dynamically.
-
-        This gives us a clean extension point for future providers
-        without modifying the factory itself.
+        Register a new market-data provider.
 
         Example:
 
             ProviderFactory.register(
-                "new_provider",
-                NewProvider,
-                aliases=("new-api",),
+                "my_provider",
+                MyProvider,
             )
+
+        By default an existing provider cannot be overwritten.
+        Set overwrite=True when intentional replacement is required.
         """
 
-        canonical_name = cls._normalize_name(name)
+        normalized_name = cls.normalize_name(
+            provider_name
+        )
 
         if not isinstance(
             provider_class,
@@ -253,191 +283,246 @@ class ProviderFactory:
                 "MarketDataProvider."
             )
 
-        normalized_aliases = tuple(
-            cls._normalize_name(alias)
-            for alias in aliases
-        )
+        if (
+            normalized_name in cls._providers
+            and not overwrite
+        ):
+            raise ApplicationError(
+                "Provider is already registered.",
+                {
+                    "provider": normalized_name,
+                    "available": cls.available(),
+                },
+            )
 
-        with cls._lock:
-            if (
-                canonical_name in cls._providers
-                and not overwrite
-            ):
-                raise ApplicationError(
-                    "Provider is already registered.",
-                    {
-                        "provider": canonical_name,
-                    },
-                )
+        cls._providers[
+            normalized_name
+        ] = provider_class
 
-            cls._providers[
-                canonical_name
-            ] = provider_class
-
-            cls._aliases[
-                canonical_name
-            ] = canonical_name
-
-            for alias in normalized_aliases:
-                existing_target = cls._aliases.get(
-                    alias
-                )
-
-                if (
-                    existing_target is not None
-                    and existing_target != canonical_name
-                ):
-                    raise ApplicationError(
-                        "Provider alias is already registered.",
-                        {
-                            "alias": alias,
-                            "existing_provider": existing_target,
-                            "provider": canonical_name,
-                        },
-                    )
-
-                cls._aliases[
-                    alias
-                ] = canonical_name
-
-    # ------------------------------------------------------------------
-    # Provider removal
-    # ------------------------------------------------------------------
+        # A canonical provider name should always resolve
+        # to itself.
+        cls._aliases[
+            normalized_name
+        ] = normalized_name
 
     @classmethod
     def unregister(
         cls,
         provider_name: str,
-    ) -> bool:
+    ) -> None:
         """
-        Remove a dynamically registered provider.
+        Remove a registered provider.
 
-        Returns:
-            True  -> provider was removed
-            False -> provider did not exist
-
-        Built-in providers are not protected at this layer,
-        but unregistering one should only be done deliberately.
+        The default provider cannot be removed until another
+        default provider has been selected.
         """
 
-        canonical_name = cls._normalize_name(
+        normalized_name = cls.normalize_name(
             provider_name
         )
 
-        with cls._lock:
-            if canonical_name not in cls._providers:
-                return False
+        if normalized_name not in cls._providers:
+            raise ApplicationError(
+                "Provider is not registered.",
+                {
+                    "provider": normalized_name,
+                    "available": cls.available(),
+                },
+            )
 
-            del cls._providers[
-                canonical_name
-            ]
+        if (
+            normalized_name
+            == cls._default_provider
+        ):
+            raise ApplicationError(
+                "Cannot unregister the default provider.",
+                {
+                    "provider": normalized_name,
+                    "default": cls._default_provider,
+                },
+            )
 
-            aliases_to_remove = [
+        del cls._providers[
+            normalized_name
+        ]
+
+        # Remove aliases pointing to the provider.
+        aliases_to_remove = [
+            alias
+            for alias, target
+            in cls._aliases.items()
+            if target == normalized_name
+        ]
+
+        for alias in aliases_to_remove:
+            del cls._aliases[
                 alias
-                for alias, target in cls._aliases.items()
-                if target == canonical_name
             ]
 
-            for alias in aliases_to_remove:
-                del cls._aliases[alias]
-
-        return True
-
     # ------------------------------------------------------------------
-    # Provider inspection
+    # Provider lookup
     # ------------------------------------------------------------------
 
     @classmethod
-    def available(cls) -> list[str]:
-        """
-        Return canonical names of available providers.
-
-        The original method is intentionally preserved.
-        """
-
-        with cls._lock:
-            return list(
-                cls._providers.keys()
-            )
-
-    @classmethod
-    def aliases(cls) -> dict[str, str]:
-        """
-        Return a copy of the provider alias mapping.
-        """
-
-        with cls._lock:
-            return dict(
-                cls._aliases
-            )
-
-    @classmethod
-    def is_available(
+    def is_supported(
         cls,
         provider_name: str,
     ) -> bool:
         """
-        Check whether a provider or alias is registered.
+        Return True if a provider is registered.
         """
 
+        if not isinstance(
+            provider_name,
+            str,
+        ):
+            return False
+
         try:
-            cls._resolve_name(
+            normalized_name = cls.normalize_name(
                 provider_name
             )
         except (
             TypeError,
-            ApplicationError,
+            ValueError,
         ):
             return False
 
-        return True
+        return normalized_name in cls._providers
 
     @classmethod
     def get_provider_class(
         cls,
         provider_name: str,
-    ) -> ProviderClass:
+    ) -> type[MarketDataProvider]:
         """
         Return the registered provider class without
         instantiating it.
         """
 
-        canonical_name = cls._resolve_name(
+        normalized_name = cls.normalize_name(
             provider_name
         )
 
-        with cls._lock:
-            provider_class = cls._providers.get(
-                canonical_name
-            )
+        provider_class = cls._providers.get(
+            normalized_name
+        )
 
         if provider_class is None:
             raise ApplicationError(
-                "Provider is unavailable.",
+                "Unknown market data provider.",
                 {
-                    "provider": canonical_name,
+                    "provider": provider_name,
+                    "available": cls.available(),
                 },
             )
 
         return provider_class
 
+    # ------------------------------------------------------------------
+    # Provider availability
+    # ------------------------------------------------------------------
+
     @classmethod
-    def snapshot(cls) -> Mapping[str, ProviderClass]:
+    def available(
+        cls,
+    ) -> list[str]:
         """
-        Return a read-only-style snapshot of the current
-        provider registry.
+        Return all registered canonical provider names.
 
-        A normal dict copy is returned so callers cannot mutate
-        the internal registry accidentally.
+        A new list is returned so callers cannot accidentally
+        mutate the internal registry.
         """
 
-        with cls._lock:
-            return dict(
-                cls._providers
-            )
+        return sorted(
+            cls._providers.keys()
+        )
+
+    @classmethod
+    def aliases(
+        cls,
+    ) -> Mapping[str, str]:
+        """
+        Return a read-only view of provider aliases.
+        """
+
+        return dict(
+            cls._aliases
+        )
+
+    @classmethod
+    def registry(
+        cls,
+    ) -> Mapping[
+        str,
+        type[MarketDataProvider],
+    ]:
+        """
+        Return a snapshot of the current provider registry.
+
+        The returned dictionary is a copy and cannot directly
+        mutate the internal registry.
+        """
+
+        return dict(
+            cls._providers
+        )
+
+    # ------------------------------------------------------------------
+    # Provider health/configuration
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def configured(
+        cls,
+        provider_name: str,
+    ) -> bool:
+        """
+        Check whether a provider can be considered configured.
+
+        This does not perform a network request.
+
+        It only calls the provider's local is_configured()
+        implementation.
+        """
+
+        provider = cls.create(
+            provider_name
+        )
+
+        return bool(
+            provider.is_configured()
+        )
+
+    @classmethod
+    def configured_providers(
+        cls,
+    ) -> list[str]:
+        """
+        Return providers that are locally configured.
+
+        No external API calls are performed.
+        """
+
+        result: list[str] = []
+
+        for provider_name in cls.available():
+            try:
+                if cls.configured(
+                    provider_name
+                ):
+                    result.append(
+                        provider_name
+                    )
+            except Exception:
+                # A provider that cannot be initialized is not
+                # considered configured.
+                continue
+
+        return result
 
 
 __all__ = [
     "ProviderFactory",
-    "ProviderClass",
 ]
+
