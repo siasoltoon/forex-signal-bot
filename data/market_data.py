@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import pandas as pd
 
-from data.alphavantage import AlphaVantageClient
-from data.finnhub import FinnhubClient
-from data.oanda import OandaClient
+from data.factory import ProviderFactory
+from data.models import Candle
+from data.provider_manager import ProviderManager
 
 
 logger = logging.getLogger(__name__)
@@ -15,219 +16,193 @@ logger = logging.getLogger(__name__)
 
 class MarketDataEngine:
     """
-    Unified market-data layer.
+    Unified market-data facade.
 
-    Analysis modules should communicate with this class
-    instead of communicating directly with individual APIs.
+    Provider selection, retry, fallback, cooldown and Candle
+    normalization are delegated to ProviderManager. This class is
+    responsible only for the application-facing representation and
+    backwards-compatible convenience methods.
     """
 
-    def __init__(self) -> None:
-        self.finnhub = FinnhubClient()
-        self.alphavantage = AlphaVantageClient()
-        self.oanda = OandaClient()
+    def __init__(
+        self,
+        provider_manager: ProviderManager | None = None,
+    ) -> None:
+        self.provider_manager = (
+            provider_manager
+            if provider_manager is not None
+            else ProviderManager()
+        )
+        self._oanda_provider: Any | None = None
+
+    # ------------------------------------------------------------------
+    # Validation / normalization
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _validate_request(
+        symbol: str,
+        timeframe: str,
+        limit: int,
+    ) -> tuple[str, str, int]:
+        if not isinstance(symbol, str):
+            raise TypeError("symbol must be a string.")
+        if not symbol.strip():
+            raise ValueError("symbol cannot be empty.")
+
+        if not isinstance(timeframe, str):
+            raise TypeError("timeframe must be a string.")
+        if not timeframe.strip():
+            raise ValueError("timeframe cannot be empty.")
+
+        if isinstance(limit, bool) or not isinstance(limit, int):
+            raise TypeError("limit must be an integer.")
+        if limit < 1:
+            raise ValueError("limit must be greater than zero.")
+
+        return (
+            symbol.strip().upper(),
+            timeframe.strip().upper(),
+            limit,
+        )
 
     @staticmethod
     def _validate_dataframe(
         dataframe: pd.DataFrame,
     ) -> pd.DataFrame:
         """
-        Validate and normalize OHLCV data.
+        Validate and normalize an OHLCV DataFrame.
+
+        The returned frame always has a UTC DatetimeIndex and the
+        canonical columns: open, high, low, close, volume.
         """
+        required = ["open", "high", "low", "close"]
 
-        required_columns = [
-            "open",
-            "high",
-            "low",
-            "close",
-        ]
-
-        missing = [
-            column
-            for column in required_columns
-            if column not in dataframe.columns
-        ]
-
-        if missing:
-            raise ValueError(
-                f"Missing OHLC columns: {missing}"
+        if dataframe is None or dataframe.empty:
+            return pd.DataFrame(
+                columns=[*required, "volume"],
+                index=pd.DatetimeIndex([], tz="UTC"),
             )
 
-        dataframe = dataframe.copy()
+        frame = dataframe.copy()
 
-        for column in required_columns:
-            dataframe[column] = pd.to_numeric(
-                dataframe[column],
-                errors="coerce",
-            )
-
-        if "volume" in dataframe.columns:
-            dataframe["volume"] = pd.to_numeric(
-                dataframe["volume"],
-                errors="coerce",
-            )
-        else:
-            dataframe["volume"] = 0.0
-
-        dataframe = dataframe.dropna(
-            subset=required_columns
-        )
-
-        dataframe = dataframe.sort_index()
-
-        return dataframe
-
-    @staticmethod
-    def _finnhub_to_dataframe(
-        data: dict[str, Any],
-    ) -> pd.DataFrame:
-        """
-        Convert Finnhub candle response to DataFrame.
-        """
-
-        if not data:
-            return pd.DataFrame()
-
-        timestamps = data.get("t", [])
-
-        dataframe = pd.DataFrame(
-            {
-                "timestamp": pd.to_datetime(
-                    timestamps,
-                    unit="s",
-                    utc=True,
-                ),
-                "open": data.get("o", []),
-                "high": data.get("h", []),
-                "low": data.get("l", []),
-                "close": data.get("c", []),
-                "volume": data.get("v", []),
-            }
-        )
-
-        if dataframe.empty:
-            return dataframe
-
-        dataframe = dataframe.set_index(
-            "timestamp"
-        )
-
-        return MarketDataEngine._validate_dataframe(
-            dataframe
-        )
-
-    @staticmethod
-    def _oanda_to_dataframe(
-        data: dict[str, Any],
-    ) -> pd.DataFrame:
-        """
-        Convert OANDA candle response to DataFrame.
-        """
-
-        candles = data.get("candles", [])
-
-        rows = []
-
-        for candle in candles:
-            if not candle.get("complete", True):
-                continue
-
-            mid = candle.get("mid", {})
-
-            rows.append(
-                {
-                    "timestamp": pd.to_datetime(
-                        candle.get("time"),
-                        utc=True,
-                    ),
-                    "open": mid.get("o"),
-                    "high": mid.get("h"),
-                    "low": mid.get("l"),
-                    "close": mid.get("c"),
-                    "volume": candle.get(
-                        "volume",
-                        0,
-                    ),
-                }
-            )
-
-        if not rows:
-            return pd.DataFrame()
-
-        dataframe = pd.DataFrame(rows)
-
-        dataframe = dataframe.set_index(
-            "timestamp"
-        )
-
-        return MarketDataEngine._validate_dataframe(
-            dataframe
-        )
-
-    @staticmethod
-    def _alphavantage_to_dataframe(
-        data: dict[str, Any],
-    ) -> pd.DataFrame:
-        """
-        Convert Alpha Vantage intraday response
-        to DataFrame.
-        """
-
-        series_key = next(
-            (
-                key
-                for key in data
-                if key.startswith(
-                    "Time Series"
+        if not isinstance(frame.index, pd.DatetimeIndex):
+            if "timestamp" not in frame.columns:
+                raise ValueError(
+                    "Market data must have a DatetimeIndex or timestamp column."
                 )
-            ),
-            None,
-        )
-
-        if not series_key:
-            return pd.DataFrame()
-
-        series = data[series_key]
-
-        rows = []
-
-        for timestamp, values in series.items():
-            rows.append(
-                {
-                    "timestamp": pd.to_datetime(
-                        timestamp,
-                        utc=True,
-                    ),
-                    "open": values.get(
-                        "1. open"
-                    ),
-                    "high": values.get(
-                        "2. high"
-                    ),
-                    "low": values.get(
-                        "3. low"
-                    ),
-                    "close": values.get(
-                        "4. close"
-                    ),
-                    "volume": values.get(
-                        "5. volume",
-                        0,
-                    ),
-                }
+            frame["timestamp"] = pd.to_datetime(
+                frame["timestamp"],
+                utc=True,
+                errors="coerce",
+            )
+            frame = frame.set_index("timestamp")
+        else:
+            frame.index = pd.to_datetime(
+                frame.index,
+                utc=True,
+                errors="coerce",
             )
 
-        if not rows:
-            return pd.DataFrame()
+        missing = [column for column in required if column not in frame.columns]
+        if missing:
+            raise ValueError(f"Missing OHLC columns: {missing}")
 
-        dataframe = pd.DataFrame(rows)
+        if "volume" not in frame.columns:
+            frame["volume"] = 0.0
 
-        dataframe = dataframe.set_index(
-            "timestamp"
+        for column in [*required, "volume"]:
+            frame[column] = pd.to_numeric(
+                frame[column],
+                errors="coerce",
+            )
+
+        frame = frame.dropna(
+            subset=[*required, "volume"],
         )
 
-        return MarketDataEngine._validate_dataframe(
-            dataframe
+        # Do not allow impossible OHLC structures into the analysis layer.
+        frame = frame[
+            (frame["open"] > 0)
+            & (frame["high"] > 0)
+            & (frame["low"] > 0)
+            & (frame["close"] > 0)
+            & (frame["volume"] >= 0)
+            & (frame["high"] >= frame[["open", "close", "low"]].max(axis=1))
+            & (frame["low"] <= frame[["open", "close", "high"]].min(axis=1))
+        ]
+
+        frame = frame[~frame.index.isna()]
+        frame = frame[~frame.index.duplicated(keep="last")]
+        frame = frame.sort_index()
+
+        return frame[["open", "high", "low", "close", "volume"]]
+
+    @staticmethod
+    def _candles_to_dataframe(
+        candles: list[Candle],
+    ) -> pd.DataFrame:
+        if not candles:
+            return MarketDataEngine._validate_dataframe(
+                pd.DataFrame()
+            )
+
+        rows = [candle.to_dict() for candle in candles]
+        frame = pd.DataFrame(rows)
+        frame["timestamp"] = pd.to_datetime(
+            frame["timestamp"],
+            utc=True,
+            errors="coerce",
         )
+        frame = frame.set_index("timestamp")
+
+        return MarketDataEngine._validate_dataframe(frame)
+
+    # ------------------------------------------------------------------
+    # Canonical API
+    # ------------------------------------------------------------------
+
+    async def get_candles(
+        self,
+        symbol: str,
+        timeframe: str,
+        limit: int = 100,
+    ) -> pd.DataFrame:
+        """
+        Fetch canonical candles through ProviderManager.
+        """
+        normalized_symbol, normalized_timeframe, normalized_limit = (
+            self._validate_request(symbol, timeframe, limit)
+        )
+
+        candles = await self.provider_manager.get_candles(
+            symbol=normalized_symbol,
+            timeframe=normalized_timeframe,
+            limit=normalized_limit,
+        )
+
+        return self._candles_to_dataframe(candles)
+
+    async def get_candles_list(
+        self,
+        symbol: str,
+        timeframe: str,
+        limit: int = 100,
+    ) -> list[Candle]:
+        """Return the canonical Candle representation."""
+        normalized_symbol, normalized_timeframe, normalized_limit = (
+            self._validate_request(symbol, timeframe, limit)
+        )
+
+        return await self.provider_manager.get_candles(
+            symbol=normalized_symbol,
+            timeframe=normalized_timeframe,
+            limit=normalized_limit,
+        )
+
+    # ------------------------------------------------------------------
+    # Backwards-compatible provider-specific methods
+    # ------------------------------------------------------------------
 
     async def get_finnhub_candles(
         self,
@@ -237,20 +212,39 @@ class MarketDataEngine:
         to_timestamp: int,
     ) -> pd.DataFrame:
         """
-        Get normalized candle data from Finnhub.
-        """
+        Compatibility adapter for the previous Finnhub API.
 
-        data = await self.finnhub.get_candles(
+        Provider selection remains centralized in ProviderManager.
+        """
+        if not isinstance(from_timestamp, int):
+            raise TypeError("from_timestamp must be an integer.")
+        if not isinstance(to_timestamp, int):
+            raise TypeError("to_timestamp must be an integer.")
+        if from_timestamp > to_timestamp:
+            raise ValueError("from_timestamp cannot exceed to_timestamp.")
+
+        candles = await self.provider_manager.get_candles(
             symbol=symbol,
-            resolution=resolution,
-            from_timestamp=from_timestamp,
-            to_timestamp=to_timestamp,
+            timeframe=resolution,
+            limit=5000,
         )
 
-        if not data:
-            return pd.DataFrame()
+        start = datetime.fromtimestamp(
+            from_timestamp,
+            tz=timezone.utc,
+        )
+        end = datetime.fromtimestamp(
+            to_timestamp,
+            tz=timezone.utc,
+        )
 
-        return self._finnhub_to_dataframe(data)
+        filtered = [
+            candle
+            for candle in candles
+            if start <= candle.timestamp <= end
+        ]
+
+        return self._candles_to_dataframe(filtered)
 
     async def get_oanda_candles(
         self,
@@ -258,17 +252,12 @@ class MarketDataEngine:
         granularity: str = "M15",
         count: int = 500,
     ) -> pd.DataFrame:
-        """
-        Get normalized candle data from OANDA.
-        """
-
-        data = await self.oanda.get_candles(
-            instrument=instrument,
-            granularity=granularity,
-            count=count,
+        """Compatibility adapter for the previous OANDA API."""
+        return await self.get_candles(
+            symbol=instrument,
+            timeframe=granularity,
+            limit=count,
         )
-
-        return self._oanda_to_dataframe(data)
 
     async def get_alphavantage_intraday(
         self,
@@ -276,32 +265,73 @@ class MarketDataEngine:
         interval: str = "15min",
     ) -> pd.DataFrame:
         """
-        Get normalized intraday data from
-        Alpha Vantage.
+        Compatibility adapter for Alpha Vantage intraday requests.
+
+        Alpha Vantage's interval names are converted to the project's
+        canonical M/H timeframe notation before reaching providers.
         """
+        interval_map = {
+            "1min": "M1",
+            "5min": "M5",
+            "15min": "M15",
+            "30min": "M30",
+            "60min": "H1",
+        }
 
-        data = await self.alphavantage.get_intraday(
+        normalized = interval.strip().lower()
+        timeframe = interval_map.get(normalized)
+
+        if timeframe is None:
+            raise ValueError(
+                f"Unsupported Alpha Vantage interval: {interval!r}"
+            )
+
+        return await self.get_candles(
             symbol=symbol,
-            interval=interval,
+            timeframe=timeframe,
+            limit=500,
         )
-
-        return self._alphavantage_to_dataframe(data)
 
     async def get_latest_oanda_price(
         self,
         instrument: str,
     ) -> Optional[dict[str, Any]]:
         """
-        Get the latest OANDA price.
+        Backwards-compatible latest OANDA price helper.
+
+        Price snapshots are not part of the Candle contract, so this
+        narrow operation remains delegated to the OANDA client's
+        specialized endpoint. Candle retrieval never uses it.
         """
+        if not isinstance(instrument, str):
+            raise TypeError("instrument must be a string.")
+        if not instrument.strip():
+            raise ValueError("instrument cannot be empty.")
 
-        data = await self.oanda.get_price(
-            instrument
+        if self._oanda_provider is None:
+            self._oanda_provider = ProviderFactory.create("oanda")
+
+        client = getattr(
+            self._oanda_provider,
+            "client",
+            None,
         )
+        if client is None or not hasattr(client, "get_price"):
+            raise RuntimeError(
+                "OANDA provider does not expose the price endpoint."
+            )
 
+        data = await client.get_price(
+            instrument.strip().upper()
+        )
         prices = data.get("prices", [])
 
         if not prices:
             return None
 
         return prices[0]
+
+
+__all__ = [
+    "MarketDataEngine",
+]
