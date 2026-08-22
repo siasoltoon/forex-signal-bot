@@ -102,19 +102,40 @@ class Settings:
     max_open_positions: int = 5
     timezone: str = "UTC"
     log_level: str = "INFO"
-    ai_enabled: bool = True
+    ai_enabled: bool = False
     ai_api_key: Optional[str] = None
     ai_model: str = "gpt-5.6-luna"
     ai_temperature: float = 0.2
     request_timeout: int = 30
     max_retries: int = 3
 
+    def __post_init__(self) -> None:
+        if not self.app_name.strip():
+            raise ValueError("APP_NAME cannot be empty.")
+        if self.environment.lower() not in {"development", "testing", "staging", "production"}:
+            raise ValueError("ENVIRONMENT must be development, testing, staging, or production.")
+        if not 0 < self.risk_per_trade <= 1:
+            raise ValueError("RISK_PER_TRADE must be greater than 0 and at most 1.")
+        if self.max_open_positions < 1:
+            raise ValueError("MAX_OPEN_POSITIONS must be at least 1.")
+        if not self.timezone.strip():
+            raise ValueError("TIMEZONE cannot be empty.")
+        if self.log_level.upper() not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+            raise ValueError("LOG_LEVEL must be DEBUG, INFO, WARNING, ERROR, or CRITICAL.")
+        if not 0 <= self.ai_temperature <= 2:
+            raise ValueError("AI_TEMPERATURE must be between 0 and 2.")
+        if self.request_timeout < 1:
+            raise ValueError("REQUEST_TIMEOUT must be at least 1 second.")
+        if self.max_retries < 0:
+            raise ValueError("MAX_RETRIES cannot be negative.")
+        if self.ai_enabled and not self.ai_api_key:
+            raise ValueError("AI_ENABLED is true but AI_API_KEY is not configured.")
+
     @classmethod
     def load(cls) -> "Settings":
         telegram_token = _get_env("TELEGRAM_BOT_TOKEN")
         ai_api_key = _get_env("AI_API_KEY")
         ai_enabled = _get_bool("AI_ENABLED", bool(ai_api_key))
-        ai_temperature = max(0.0, min(2.0, _get_float("AI_TEMPERATURE", 0.2)))
         return cls(
             app_name=_get_env("APP_NAME", "Professional Trading Bot"),
             environment=_get_env("ENVIRONMENT", "development"),
@@ -133,7 +154,7 @@ class Settings:
             ai_enabled=ai_enabled,
             ai_api_key=ai_api_key,
             ai_model=_get_env("AI_MODEL", "gpt-5.6-luna"),
-            ai_temperature=ai_temperature,
+            ai_temperature=_get_float("AI_TEMPERATURE", 0.2),
             request_timeout=_get_int("REQUEST_TIMEOUT", 30),
             max_retries=_get_int("MAX_RETRIES", 3),
         )

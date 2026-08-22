@@ -4,34 +4,23 @@ from abc import ABC, abstractmethod
 
 
 class BaseService(ABC):
-    """
-    Base class for all application services.
-    """
+    """Base class for all application services."""
 
     name: str = "base-service"
-
+    critical: bool = False
 
     @abstractmethod
     def start(self) -> None:
-        """
-        Start service.
-        """
+        """Start service."""
         pass
-
 
     @abstractmethod
     def stop(self) -> None:
-        """
-        Stop service.
-        """
+        """Stop service."""
         pass
 
-
     def health(self) -> dict[str, str]:
-        """
-        Service health information.
-        """
-
+        """Return service health information."""
         return {
             "service": self.name,
             "status": "ok",
