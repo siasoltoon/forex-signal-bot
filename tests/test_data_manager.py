@@ -420,7 +420,7 @@ async def test_fallback_returns_first_successful_non_empty_result() -> None:
     )
 
     assert result == second_candles
-    assert first.calls == 1
+    assert first.calls == 3
     assert second.calls == 1
 
 
@@ -443,7 +443,7 @@ async def test_fallback_skips_empty_provider() -> None:
     )
 
     assert result == second_candles
-    assert first.calls == 1
+    assert first.calls == 3
     assert second.calls == 1
 
 
@@ -475,7 +475,7 @@ async def test_fallback_rejects_unknown_only_provider_list() -> None:
     manager = DataManager()
     manager.register(FakeProvider())
 
-    with pytest.raises(ApplicationError, match="All market data providers failed"):
+    with pytest.raises(ApplicationError, match="Market data provider not found: missing"):
         await manager.get_candles_with_fallback(
             symbol="EUR_USD",
             timeframe="M15",
