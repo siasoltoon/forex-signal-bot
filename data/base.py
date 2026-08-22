@@ -1,65 +1,74 @@
-
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Final
 
 from data.models import Candle
+
+
+class MarketDataProviderError(Exception):
+    """
+    Base exception for market-data provider errors.
+    """
+
+
+class ProviderConfigurationError(MarketDataProviderError):
+    """
+    Raised when a provider is not configured correctly.
+    """
+
+
+class ProviderConnectionError(MarketDataProviderError):
+    """
+    Raised when a provider cannot be reached.
+    """
+
+
+class ProviderResponseError(MarketDataProviderError):
+    """
+    Raised when a provider returns invalid or unusable data.
+    """
+
+
+class InvalidMarketDataRequest(MarketDataProviderError):
+    """
+    Raised when a market-data request is invalid.
+    """
 
 
 class MarketDataProvider(ABC):
     """
     Base contract for all market-data providers.
 
-    Every provider in the project must implement this interface.
+    All providers such as:
+        - OANDA
+        - Finnhub
+        - AlphaVantage
+        - future providers
 
-    The interface intentionally keeps the existing public API:
+    must implement get_candles() and expose a provider name.
 
-        provider.name
-        await provider.get_candles(symbol, timeframe, limit)
+    Backward compatibility:
+        The existing project already uses:
 
-    so existing providers and tests remain compatible.
+            provider.name
+            provider.get_candles(...)
+
+        so those interfaces are intentionally preserved.
     """
 
     # ------------------------------------------------------------------
-    # Provider identity
+    # Provider metadata
     # ------------------------------------------------------------------
 
     name: str = "unknown"
 
-    # ------------------------------------------------------------------
-    # Provider capabilities
-    # ------------------------------------------------------------------
-
-    supports_historical: bool = True
-    supports_realtime: bool = False
+    # Maximum number of candles accepted by the generic interface.
+    # Individual providers may impose stricter limits.
+    MAX_LIMIT: Final[int] = 5000
 
     # ------------------------------------------------------------------
-    # Provider health / metadata
-    # ------------------------------------------------------------------
-
-    @property
-    def provider_name(self) -> str:
-        """
-        Canonical provider name.
-
-        Keeps `name` as the source of truth while providing a cleaner
-        interface for future infrastructure.
-        """
-        return self.name
-
-    @property
-    def is_available(self) -> bool:
-        """
-        Whether the provider is currently considered available.
-
-        Concrete providers can override this later if they implement
-        health checks.
-        """
-        return True
-
-    # ------------------------------------------------------------------
-    # Core market-data API
+    # Core interface
     # ------------------------------------------------------------------
 
     @abstractmethod
@@ -70,149 +79,274 @@ class MarketDataProvider(ABC):
         limit: int = 100,
     ) -> list[Candle]:
         """
-        Fetch normalized OHLCV candles.
+        Fetch standardized market candles.
 
         Parameters
         ----------
         symbol:
-            Market symbol, for example EURUSD.
+            Market symbol, e.g. EURUSD.
 
         timeframe:
-            Candle timeframe, for example 1m, 5m, 15m, 1h, 4h, 1d.
+            Candle timeframe, e.g. 1m, 5m, 15m, 1h, 4h, 1d.
 
         limit:
-            Maximum number of candles requested.
+            Number of candles requested.
 
         Returns
         -------
         list[Candle]
-            Provider-independent normalized candles.
+            Provider-independent candle objects.
         """
+
         raise NotImplementedError
 
     # ------------------------------------------------------------------
-    # Optional lifecycle
+    # Provider status
     # ------------------------------------------------------------------
+
+    def is_configured(self) -> bool:
+        """
+        Return whether this provider is configured and usable.
+
+        The default implementation assumes the provider is configured.
+
+        Providers that require API credentials can override this method.
+        """
+
+        return True
 
     async def health_check(self) -> bool:
         """
-        Lightweight provider health check.
+        Check whether the provider is currently healthy.
 
-        Providers may override this when an actual API health endpoint
-        or connectivity test is available.
+        The default implementation only checks configuration.
 
-        The default implementation deliberately does not perform
-        network traffic.
+        Concrete providers can override this method when they have a
+        lightweight API health endpoint or connection check.
         """
-        return self.is_available
 
-    async def close(self) -> None:
-        """
-        Optional asynchronous cleanup hook.
-
-        HTTP clients, sessions, WebSocket connections, etc. can override
-        this method later.
-
-        The default implementation does nothing.
-        """
-        return None
+        return self.is_configured()
 
     # ------------------------------------------------------------------
-    # Validation helpers
+    # Request validation
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def validate_request(
-        symbol: str,
-        timeframe: str,
-        limit: int,
-    ) -> None:
+    @classmethod
+    def validate_symbol(cls, symbol: str) -> str:
         """
-        Validate common market-data request parameters.
+        Validate and normalize a market symbol.
 
-        This is intentionally provider-independent so every provider
-        follows the same basic rules.
+        Examples:
+            EURUSD
+            eurusd -> EURUSD
+            " EURUSD " -> EURUSD
         """
 
-        if not isinstance(symbol, str) or not symbol.strip():
-            raise ValueError("symbol must be a non-empty string")
-
-        if not isinstance(timeframe, str) or not timeframe.strip():
-            raise ValueError("timeframe must be a non-empty string")
-
-        if isinstance(limit, bool) or not isinstance(limit, int):
-            raise TypeError("limit must be an integer")
-
-        if limit <= 0:
-            raise ValueError("limit must be greater than zero")
-
-    # ------------------------------------------------------------------
-    # Normalization helpers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """
-        Normalize a market symbol before sending it to a provider.
-
-        This does NOT convert provider-specific formats.
-
-        Example:
-
-            " eurusd " -> "EURUSD"
-        """
         if not isinstance(symbol, str):
-            raise TypeError("symbol must be a string")
+            raise InvalidMarketDataRequest(
+                "symbol must be a string."
+            )
 
         normalized = symbol.strip().upper()
 
         if not normalized:
-            raise ValueError("symbol must not be empty")
+            raise InvalidMarketDataRequest(
+                "symbol cannot be empty."
+            )
+
+        if len(normalized) > 30:
+            raise InvalidMarketDataRequest(
+                "symbol is too long."
+            )
 
         return normalized
 
-    @staticmethod
-    def normalize_timeframe(timeframe: str) -> str:
+    @classmethod
+    def validate_timeframe(cls, timeframe: str) -> str:
         """
-        Normalize timeframe representation.
+        Validate and normalize a timeframe.
 
-        Example:
+        Supported common formats include:
 
-            " 1H " -> "1h"
+            1m
+            5m
+            15m
+            30m
+            1h
+            2h
+            4h
+            6h
+            8h
+            12h
+            1d
+            1w
+            1M
         """
+
         if not isinstance(timeframe, str):
-            raise TypeError("timeframe must be a string")
+            raise InvalidMarketDataRequest(
+                "timeframe must be a string."
+            )
 
-        normalized = timeframe.strip().lower()
+        normalized = timeframe.strip()
 
         if not normalized:
-            raise ValueError("timeframe must not be empty")
+            raise InvalidMarketDataRequest(
+                "timeframe cannot be empty."
+            )
+
+        if len(normalized) > 10:
+            raise InvalidMarketDataRequest(
+                "timeframe is invalid."
+            )
+
+        # Keep "M" distinct from "m":
+        # m = minute
+        # M = month
+        if normalized.endswith("M"):
+            unit = "M"
+            value = normalized[:-1]
+        else:
+            unit = normalized[-1:].lower()
+            value = normalized[:-1]
+
+        valid_units = {"m", "h", "d", "w"}
+
+        if unit not in valid_units and normalized[-1:] != "M":
+            raise InvalidMarketDataRequest(
+                f"Unsupported timeframe: {timeframe!r}"
+            )
+
+        if not value.isdigit():
+            raise InvalidMarketDataRequest(
+                f"Invalid timeframe: {timeframe!r}"
+            )
+
+        amount = int(value)
+
+        if amount <= 0:
+            raise InvalidMarketDataRequest(
+                f"Timeframe must be greater than zero: {timeframe!r}"
+            )
 
         return normalized
+
+    @classmethod
+    def validate_limit(
+        cls,
+        limit: int,
+        *,
+        default: int = 100,
+    ) -> int:
+        """
+        Validate the requested candle count.
+        """
+
+        if limit is None:
+            limit = default
+
+        if isinstance(limit, bool):
+            raise InvalidMarketDataRequest(
+                "limit must be an integer."
+            )
+
+        if not isinstance(limit, int):
+            raise InvalidMarketDataRequest(
+                "limit must be an integer."
+            )
+
+        if limit <= 0:
+            raise InvalidMarketDataRequest(
+                "limit must be greater than zero."
+            )
+
+        if limit > cls.MAX_LIMIT:
+            raise InvalidMarketDataRequest(
+                f"limit cannot exceed {cls.MAX_LIMIT}."
+            )
+
+        return limit
+
+    @classmethod
+    def validate_request(
+        cls,
+        symbol: str,
+        timeframe: str,
+        limit: int = 100,
+    ) -> tuple[str, str, int]:
+        """
+        Validate a complete candle request.
+
+        Returns
+        -------
+        tuple[str, str, int]
+            Normalized symbol, timeframe and validated limit.
+        """
+
+        normalized_symbol = cls.validate_symbol(symbol)
+        normalized_timeframe = cls.validate_timeframe(timeframe)
+        normalized_limit = cls.validate_limit(limit)
+
+        return (
+            normalized_symbol,
+            normalized_timeframe,
+            normalized_limit,
+        )
+
+    # ------------------------------------------------------------------
+    # Result validation
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def validate_candles(
+        cls,
+        candles: list[Candle],
+    ) -> list[Candle]:
+        """
+        Validate the result returned by a provider.
+
+        The Candle model itself performs the detailed OHLC validation.
+        Here we validate the collection and its elements.
+        """
+
+        if not isinstance(candles, list):
+            raise ProviderResponseError(
+                "Provider result must be a list of Candle objects."
+            )
+
+        for candle in candles:
+            if not isinstance(candle, Candle):
+                raise ProviderResponseError(
+                    "Provider returned an invalid candle object."
+                )
+
+        return candles
 
     # ------------------------------------------------------------------
     # Provider information
     # ------------------------------------------------------------------
 
-    def info(self) -> dict[str, Any]:
+    @property
+    def provider_name(self) -> str:
         """
-        Return provider metadata.
+        Return the normalized provider name.
 
-        This gives the future Data Manager / Failover Manager a common
-        way to inspect providers without knowing their concrete class.
+        This is an additional convenience API and does not replace
+        the existing `name` attribute.
         """
-        return {
-            "name": self.provider_name,
-            "supports_historical": self.supports_historical,
-            "supports_realtime": self.supports_realtime,
-            "available": self.is_available,
-        }
 
-    # ------------------------------------------------------------------
-    # Representation
-    # ------------------------------------------------------------------
+        value = getattr(self, "name", None)
+
+        if not isinstance(value, str) or not value.strip():
+            return self.__class__.__name__
+
+        return value.strip()
 
     def __repr__(self) -> str:
+        """
+        Developer-friendly provider representation.
+        """
+
         return (
             f"{self.__class__.__name__}"
             f"(name={self.provider_name!r})"
@@ -221,4 +355,9 @@ class MarketDataProvider(ABC):
 
 __all__ = [
     "MarketDataProvider",
+    "MarketDataProviderError",
+    "ProviderConfigurationError",
+    "ProviderConnectionError",
+    "ProviderResponseError",
+    "InvalidMarketDataRequest",
 ]
