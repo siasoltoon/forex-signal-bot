@@ -38,6 +38,7 @@ Automation Runner v3 probe
 run_id=$RUN_ID
 runner_commit=$(git rev-parse HEAD)
 EOF
+          echo "Runner write probe created: automation/runner_probe.txt"
 
       - name: Commit and push runner change
         run: |
