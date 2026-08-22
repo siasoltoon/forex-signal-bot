@@ -1,28 +1,13 @@
-from __future__ import annotations
+"""Compatibility import for the canonical market candle model.
 
-from dataclasses import dataclass
+The project previously contained a second, analysis-only Candle dataclass.
+That created two incompatible candle types across the data and analysis
+layers.  The canonical model now lives in :mod:`data.models`.
 
+Keep this module as a compatibility import so existing analysis imports do
+not break while ensuring every layer uses the same Candle class.
+"""
 
-@dataclass(
-    frozen=True
-)
-class Candle:
-    """
-    Standard OHLC candle model.
+from data.models import Candle
 
-    Used by:
-    - Candlestick analysis
-    - Price action
-    - Supply/Demand
-    - Future trading engines
-    """
-
-    open: float
-
-    high: float
-
-    low: float
-
-    close: float
-
-    volume: float = 0.0
+__all__ = ["Candle"]
