@@ -1,74 +1,42 @@
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
+from datetime import datetime
 from typing import Final
 
 from data.models import Candle
 
 
-class MarketDataProviderError(Exception):
-    """
-    Base exception for market-data provider errors.
-    """
-
-
-class ProviderConfigurationError(MarketDataProviderError):
-    """
-    Raised when a provider is not configured correctly.
-    """
-
-
-class ProviderConnectionError(MarketDataProviderError):
-    """
-    Raised when a provider cannot be reached.
-    """
-
-
-class ProviderResponseError(MarketDataProviderError):
-    """
-    Raised when a provider returns invalid or unusable data.
-    """
-
-
-class InvalidMarketDataRequest(MarketDataProviderError):
-    """
-    Raised when a market-data request is invalid.
-    """
-
-
 class MarketDataProvider(ABC):
     """
-    Base contract for all market-data providers.
+    Common contract for all market-data providers.
 
-    All providers such as:
+    Every provider in the project must expose the same high-level API,
+    regardless of the underlying service.
+
+    Current providers:
         - OANDA
         - Finnhub
-        - AlphaVantage
-        - future providers
+        - Alpha Vantage
 
-    must implement get_candles() and expose a provider name.
-
-    Backward compatibility:
-        The existing project already uses:
-
-            provider.name
-            provider.get_candles(...)
-
-        so those interfaces are intentionally preserved.
+    Future providers can implement this same contract without requiring
+    changes in the analysis engine.
     """
 
     # ------------------------------------------------------------------
     # Provider metadata
     # ------------------------------------------------------------------
 
-    name: str = "unknown"
+    name: str
 
-    # Maximum number of candles accepted by the generic interface.
-    # Individual providers may impose stricter limits.
+    # Maximum number of candles accepted by the common contract.
+    DEFAULT_LIMIT: Final[int] = 100
     MAX_LIMIT: Final[int] = 5000
 
     # ------------------------------------------------------------------
-    # Core interface
+    # Main API
     # ------------------------------------------------------------------
 
     @abstractmethod
@@ -76,26 +44,22 @@ class MarketDataProvider(ABC):
         self,
         symbol: str,
         timeframe: str,
-        limit: int = 100,
+        limit: int = DEFAULT_LIMIT,
     ) -> list[Candle]:
         """
         Fetch standardized market candles.
 
-        Parameters
-        ----------
-        symbol:
-            Market symbol, e.g. EURUSD.
+        Implementations MUST return:
 
-        timeframe:
-            Candle timeframe, e.g. 1m, 5m, 15m, 1h, 4h, 1d.
+            list[Candle]
 
-        limit:
-            Number of candles requested.
+        The returned candles should be:
 
-        Returns
-        -------
-        list[Candle]
-            Provider-independent candle objects.
+        - provider-independent
+        - timezone-aware
+        - chronologically ordered
+        - free of duplicate timestamps
+        - valid according to Candle's constraints
         """
 
         raise NotImplementedError
@@ -106,258 +70,486 @@ class MarketDataProvider(ABC):
 
     def is_configured(self) -> bool:
         """
-        Return whether this provider is configured and usable.
+        Return whether the provider has the credentials/configuration
+        required to communicate with its external service.
+
+        Providers may override this method when they have custom
+        configuration requirements.
 
         The default implementation assumes the provider is configured.
-
-        Providers that require API credentials can override this method.
         """
 
         return True
-
-    async def health_check(self) -> bool:
-        """
-        Check whether the provider is currently healthy.
-
-        The default implementation only checks configuration.
-
-        Concrete providers can override this method when they have a
-        lightweight API health endpoint or connection check.
-        """
-
-        return self.is_configured()
 
     # ------------------------------------------------------------------
     # Request validation
     # ------------------------------------------------------------------
 
     @classmethod
-    def validate_symbol(cls, symbol: str) -> str:
-        """
-        Validate and normalize a market symbol.
-
-        Examples:
-            EURUSD
-            eurusd -> EURUSD
-            " EURUSD " -> EURUSD
-        """
-
-        if not isinstance(symbol, str):
-            raise InvalidMarketDataRequest(
-                "symbol must be a string."
-            )
-
-        normalized = symbol.strip().upper()
-
-        if not normalized:
-            raise InvalidMarketDataRequest(
-                "symbol cannot be empty."
-            )
-
-        if len(normalized) > 30:
-            raise InvalidMarketDataRequest(
-                "symbol is too long."
-            )
-
-        return normalized
-
-    @classmethod
-    def validate_timeframe(cls, timeframe: str) -> str:
-        """
-        Validate and normalize a timeframe.
-
-        Supported common formats include:
-
-            1m
-            5m
-            15m
-            30m
-            1h
-            2h
-            4h
-            6h
-            8h
-            12h
-            1d
-            1w
-            1M
-        """
-
-        if not isinstance(timeframe, str):
-            raise InvalidMarketDataRequest(
-                "timeframe must be a string."
-            )
-
-        normalized = timeframe.strip()
-
-        if not normalized:
-            raise InvalidMarketDataRequest(
-                "timeframe cannot be empty."
-            )
-
-        if len(normalized) > 10:
-            raise InvalidMarketDataRequest(
-                "timeframe is invalid."
-            )
-
-        # Keep "M" distinct from "m":
-        # m = minute
-        # M = month
-        if normalized.endswith("M"):
-            unit = "M"
-            value = normalized[:-1]
-        else:
-            unit = normalized[-1:].lower()
-            value = normalized[:-1]
-
-        valid_units = {"m", "h", "d", "w"}
-
-        if unit not in valid_units and normalized[-1:] != "M":
-            raise InvalidMarketDataRequest(
-                f"Unsupported timeframe: {timeframe!r}"
-            )
-
-        if not value.isdigit():
-            raise InvalidMarketDataRequest(
-                f"Invalid timeframe: {timeframe!r}"
-            )
-
-        amount = int(value)
-
-        if amount <= 0:
-            raise InvalidMarketDataRequest(
-                f"Timeframe must be greater than zero: {timeframe!r}"
-            )
-
-        return normalized
-
-    @classmethod
-    def validate_limit(
-        cls,
-        limit: int,
-        *,
-        default: int = 100,
-    ) -> int:
-        """
-        Validate the requested candle count.
-        """
-
-        if limit is None:
-            limit = default
-
-        if isinstance(limit, bool):
-            raise InvalidMarketDataRequest(
-                "limit must be an integer."
-            )
-
-        if not isinstance(limit, int):
-            raise InvalidMarketDataRequest(
-                "limit must be an integer."
-            )
-
-        if limit <= 0:
-            raise InvalidMarketDataRequest(
-                "limit must be greater than zero."
-            )
-
-        if limit > cls.MAX_LIMIT:
-            raise InvalidMarketDataRequest(
-                f"limit cannot exceed {cls.MAX_LIMIT}."
-            )
-
-        return limit
-
-    @classmethod
     def validate_request(
         cls,
         symbol: str,
         timeframe: str,
-        limit: int = 100,
-    ) -> tuple[str, str, int]:
+        limit: int = DEFAULT_LIMIT,
+    ) -> None:
         """
-        Validate a complete candle request.
+        Validate the common portion of a market-data request.
 
-        Returns
-        -------
-        tuple[str, str, int]
-            Normalized symbol, timeframe and validated limit.
+        Provider-specific timeframe validation should still happen
+        inside the concrete provider.
         """
 
-        normalized_symbol = cls.validate_symbol(symbol)
-        normalized_timeframe = cls.validate_timeframe(timeframe)
-        normalized_limit = cls.validate_limit(limit)
+        if not isinstance(
+            symbol,
+            str,
+        ):
+            raise TypeError(
+                "symbol must be a string."
+            )
 
-        return (
-            normalized_symbol,
-            normalized_timeframe,
-            normalized_limit,
-        )
+        if not symbol.strip():
+            raise ValueError(
+                "symbol cannot be empty."
+            )
+
+        if not isinstance(
+            timeframe,
+            str,
+        ):
+            raise TypeError(
+                "timeframe must be a string."
+            )
+
+        if not timeframe.strip():
+            raise ValueError(
+                "timeframe cannot be empty."
+            )
+
+        if isinstance(
+            limit,
+            bool,
+        ):
+            raise TypeError(
+                "limit must be an integer."
+            )
+
+        if not isinstance(
+            limit,
+            int,
+        ):
+            raise TypeError(
+                "limit must be an integer."
+            )
+
+        if limit < 1:
+            raise ValueError(
+                "limit must be greater than zero."
+            )
+
+        if limit > cls.MAX_LIMIT:
+            raise ValueError(
+                f"limit cannot exceed "
+                f"{cls.MAX_LIMIT}."
+            )
 
     # ------------------------------------------------------------------
-    # Result validation
+    # Symbol normalization
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def normalize_symbol(
+        symbol: str,
+    ) -> str:
+        """
+        Normalize a symbol without changing its semantic format.
+
+        Provider-specific symbol conversion should be implemented in
+        the concrete provider.
+
+        Example:
+
+            eur_usd -> EUR_USD
+        """
+
+        if not isinstance(
+            symbol,
+            str,
+        ):
+            raise TypeError(
+                "symbol must be a string."
+            )
+
+        normalized = (
+            symbol
+            .strip()
+            .upper()
+        )
+
+        if not normalized:
+            raise ValueError(
+                "symbol cannot be empty."
+            )
+
+        return normalized
+
+    # ------------------------------------------------------------------
+    # Candle validation
     # ------------------------------------------------------------------
 
     @classmethod
     def validate_candles(
         cls,
-        candles: list[Candle],
+        candles: Iterable[Candle],
+        *,
+        expected_symbol: str | None = None,
+        require_sorted: bool = True,
+        reject_duplicates: bool = True,
     ) -> list[Candle]:
         """
-        Validate the result returned by a provider.
+        Validate and normalize a collection of Candle objects.
 
-        The Candle model itself performs the detailed OHLC validation.
-        Here we validate the collection and its elements.
+        This is the final safety boundary between external market-data
+        providers and the analysis engine.
+
+        Guarantees:
+
+        - every item is a Candle
+        - timestamps are timezone-aware
+        - symbols are not empty
+        - optional symbol consistency is enforced
+        - duplicate timestamps can be rejected
+        - chronological ordering can be enforced
+        - returned collection is a new list
         """
 
-        if not isinstance(candles, list):
-            raise ProviderResponseError(
-                "Provider result must be a list of Candle objects."
+        if candles is None:
+            raise ValueError(
+                "candles cannot be None."
             )
 
-        for candle in candles:
-            if not isinstance(candle, Candle):
-                raise ProviderResponseError(
-                    "Provider returned an invalid candle object."
+        result = list(candles)
+
+        if not result:
+            return []
+
+        for index, candle in enumerate(
+            result
+        ):
+            if not isinstance(
+                candle,
+                Candle,
+            ):
+                raise TypeError(
+                    "All candle values must be "
+                    f"Candle instances. Invalid item "
+                    f"at index {index}."
                 )
 
-        return candles
+            if candle.timestamp.tzinfo is None:
+                raise ValueError(
+                    "Candle timestamp must be "
+                    "timezone-aware."
+                )
+
+            if not candle.symbol.strip():
+                raise ValueError(
+                    "Candle symbol cannot be empty."
+                )
+
+        # --------------------------------------------------------------
+        # Expected symbol validation
+        # --------------------------------------------------------------
+
+        if expected_symbol is not None:
+            normalized_symbol = cls.normalize_symbol(
+                expected_symbol
+            )
+
+            for candle in result:
+                if (
+                    cls.normalize_symbol(
+                        candle.symbol
+                    )
+                    != normalized_symbol
+                ):
+                    raise ValueError(
+                        "Candle symbol does not match "
+                        f"requested symbol "
+                        f"{expected_symbol!r}."
+                    )
+
+        # --------------------------------------------------------------
+        # Duplicate timestamp detection
+        # --------------------------------------------------------------
+
+        if reject_duplicates:
+            seen: set[tuple[str, datetime]] = set()
+
+            for candle in result:
+                key = (
+                    cls.normalize_symbol(
+                        candle.symbol
+                    ),
+                    candle.timestamp,
+                )
+
+                if key in seen:
+                    raise ValueError(
+                        "Duplicate candle detected for "
+                        f"{candle.symbol} at "
+                        f"{candle.timestamp.isoformat()}."
+                    )
+
+                seen.add(key)
+
+        # --------------------------------------------------------------
+        # Chronological validation
+        # --------------------------------------------------------------
+
+        if require_sorted:
+            for previous, current in zip(
+                result,
+                result[1:],
+            ):
+                if current.timestamp <= previous.timestamp:
+                    raise ValueError(
+                        "Candles must be strictly ordered "
+                        "chronologically."
+                    )
+
+        return result
 
     # ------------------------------------------------------------------
-    # Provider information
+    # Candle sorting / deduplication
     # ------------------------------------------------------------------
 
-    @property
-    def provider_name(self) -> str:
+    @classmethod
+    def normalize_candles(
+        cls,
+        candles: Iterable[Candle],
+        *,
+        expected_symbol: str | None = None,
+        deduplicate: bool = True,
+    ) -> list[Candle]:
         """
-        Return the normalized provider name.
+        Normalize an arbitrary provider result into a deterministic
+        chronological candle sequence.
 
-        This is an additional convenience API and does not replace
-        the existing `name` attribute.
+        Unlike validate_candles(), this method is intentionally tolerant
+        of provider ordering.
+
+        It:
+
+        1. validates Candle objects
+        2. optionally validates the requested symbol
+        3. sorts by timestamp
+        4. optionally removes duplicate timestamps
+
+        If duplicates exist, the last occurrence is retained.
         """
 
-        value = getattr(self, "name", None)
+        if candles is None:
+            raise ValueError(
+                "candles cannot be None."
+            )
 
-        if not isinstance(value, str) or not value.strip():
-            return self.__class__.__name__
+        items = list(candles)
 
-        return value.strip()
+        for index, candle in enumerate(
+            items
+        ):
+            if not isinstance(
+                candle,
+                Candle,
+            ):
+                raise TypeError(
+                    "All candle values must be "
+                    f"Candle instances. Invalid item "
+                    f"at index {index}."
+                )
+
+        if expected_symbol is not None:
+            normalized_symbol = cls.normalize_symbol(
+                expected_symbol
+            )
+
+            for candle in items:
+                if (
+                    cls.normalize_symbol(
+                        candle.symbol
+                    )
+                    != normalized_symbol
+                ):
+                    raise ValueError(
+                        "Candle symbol does not match "
+                        f"requested symbol "
+                        f"{expected_symbol!r}."
+                    )
+
+        if not deduplicate:
+            return sorted(
+                items,
+                key=lambda candle: candle.timestamp,
+            )
+
+        unique: dict[
+            tuple[str, datetime],
+            Candle,
+        ] = {}
+
+        for candle in items:
+            key = (
+                cls.normalize_symbol(
+                    candle.symbol
+                ),
+                candle.timestamp,
+            )
+
+            unique[key] = candle
+
+        return sorted(
+            unique.values(),
+            key=lambda candle: candle.timestamp,
+        )
+
+    # ------------------------------------------------------------------
+    # Limit helper
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def apply_limit(
+        cls,
+        candles: Iterable[Candle],
+        limit: int,
+    ) -> list[Candle]:
+        """
+        Apply the requested candle limit while preserving the newest
+        candles.
+
+        Example:
+
+            500 candles + limit=100
+            -> newest 100 candles
+        """
+
+        if isinstance(
+            limit,
+            bool,
+        ):
+            raise TypeError(
+                "limit must be an integer."
+            )
+
+        if not isinstance(
+            limit,
+            int,
+        ):
+            raise TypeError(
+                "limit must be an integer."
+            )
+
+        if limit < 1:
+            raise ValueError(
+                "limit must be greater than zero."
+            )
+
+        if limit > cls.MAX_LIMIT:
+            raise ValueError(
+                f"limit cannot exceed "
+                f"{cls.MAX_LIMIT}."
+            )
+
+        items = list(candles)
+
+        if len(items) <= limit:
+            return items
+
+        return items[-limit:]
+
+    # ------------------------------------------------------------------
+    # Timeframe helper
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def normalize_timeframe(
+        timeframe: str,
+    ) -> str:
+        """
+        Normalize common project timeframe notation.
+
+        This method intentionally does not decide whether a provider
+        supports a timeframe. Concrete providers remain responsible
+        for provider-specific support.
+
+        Examples:
+
+            M1  -> M1
+            M5  -> M5
+            M15 -> M15
+            H1  -> H1
+            D1  -> D1
+        """
+
+        if not isinstance(
+            timeframe,
+            str,
+        ):
+            raise TypeError(
+                "timeframe must be a string."
+            )
+
+        normalized = (
+            timeframe
+            .strip()
+            .upper()
+        )
+
+        if not normalized:
+            raise ValueError(
+                "timeframe cannot be empty."
+            )
+
+        aliases: dict[str, str] = {
+            "1M": "M1",
+            "5M": "M5",
+            "15M": "M15",
+            "30M": "M30",
+            "60M": "H1",
+            "1H": "H1",
+            "1HR": "H1",
+            "1D": "D1",
+            "1DAY": "D1",
+            "1W": "W1",
+            "1WEEK": "W1",
+        }
+
+        return aliases.get(
+            normalized,
+            normalized,
+        )
+
+    # ------------------------------------------------------------------
+    # Provider representation
+    # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
         """
-        Developer-friendly provider representation.
+        Provide a useful provider representation for logs/debugging.
         """
+
+        provider_name = getattr(
+            self,
+            "name",
+            self.__class__.__name__,
+        )
 
         return (
             f"{self.__class__.__name__}"
-            f"(name={self.provider_name!r})"
+            f"(name={provider_name!r})"
         )
 
 
 __all__ = [
     "MarketDataProvider",
-    "MarketDataProviderError",
-    "ProviderConfigurationError",
-    "ProviderConnectionError",
-    "ProviderResponseError",
-    "InvalidMarketDataRequest",
 ]
+
