@@ -841,6 +841,65 @@ class ProviderManager:
 
         return normalized
 
+    async def get_candles_explicit(
+        self,
+        provider_name: str,
+        symbol: str,
+        timeframe: str,
+        limit: int = 100,
+    ) -> list[Candle]:
+        """Fetch candles from one explicitly selected configured provider."""
+
+        if not isinstance(provider_name, str):
+            raise TypeError("provider_name must be a string.")
+        if not provider_name.strip():
+            raise ValueError("provider_name cannot be empty.")
+        if not isinstance(symbol, str):
+            raise TypeError("symbol must be a string.")
+        if not symbol.strip():
+            raise ValueError("symbol cannot be empty.")
+        if not isinstance(timeframe, str):
+            raise TypeError("timeframe must be a string.")
+        if not timeframe.strip():
+            raise ValueError("timeframe cannot be empty.")
+        if isinstance(limit, bool) or not isinstance(limit, int):
+            raise TypeError("limit must be an integer.")
+        if limit < 1:
+            raise ValueError("limit must be greater than zero.")
+
+        requested_name = provider_name.strip()
+        normalized_provider = requested_name if requested_name in self._providers else ProviderFactory.normalize_name(requested_name)
+        if normalized_provider not in self._providers:
+            raise ApplicationError(
+                "Requested provider is not configured.",
+                {"provider": normalized_provider, "configured_providers": list(self._providers)},
+            )
+
+        normalized_symbol = symbol.strip().upper()
+        normalized_timeframe = timeframe.strip().upper()
+        self._last_failures = []
+        try:
+            provider = self._get_provider(normalized_provider)
+            candles = await self._request_with_retry(
+                normalized_provider, provider,
+                symbol=normalized_symbol, timeframe=normalized_timeframe, limit=limit,
+            )
+            candles = self._normalize_candles(candles, limit=limit)
+            if not candles:
+                raise ApplicationError(
+                    "Explicit provider returned no usable candles.",
+                    {"provider": normalized_provider, "symbol": normalized_symbol, "timeframe": normalized_timeframe, "limit": limit},
+                )
+            self._cooldowns.pop(normalized_provider, None)
+            return candles
+        except ApplicationError:
+            raise
+        except Exception as error:
+            raise ApplicationError(
+                "Explicit provider request failed.",
+                {"provider": normalized_provider, "symbol": normalized_symbol, "timeframe": normalized_timeframe, "limit": limit},
+            ) from error
+
     # ------------------------------------------------------------------
     # Main public API
     # ------------------------------------------------------------------
