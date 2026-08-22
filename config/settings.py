@@ -1,726 +1,274 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
-
-from config.environment import (
-    get_bool_env,
-    get_env,
-    get_float_env,
-    get_int_env,
-    get_list_env,
-)
+from functools import lru_cache
+from typing import Optional
 
 
-@dataclass(frozen=True, slots=True)
-class TelegramSettings:
+def _get_env(name: str, default: Optional[str] = None) -> Optional[str]:
     """
-    Telegram bot configuration.
+    Read an environment variable safely.
+
+    Empty/whitespace-only values are treated as missing.
     """
+    value = os.getenv(name)
 
-    token: str | None = None
+    if value is None:
+        return default
 
-    enabled: bool = True
+    value = value.strip()
 
-    parse_mode: str = "HTML"
-
-    polling_timeout: int = 30
-
-    request_timeout: float = 30.0
+    return value if value else default
 
 
-@dataclass(frozen=True, slots=True)
-class AISettings:
+def _get_bool(name: str, default: bool = False) -> bool:
     """
-    AI engine configuration.
+    Read a boolean environment variable.
 
-    The actual AI provider is intentionally abstracted.
-    The API key and model are supplied through environment
-    variables and must never be hard-coded.
+    Accepted true values:
+        1, true, yes, on
+
+    Accepted false values:
+        0, false, no, off
     """
+    value = _get_env(name)
 
-    api_key: str | None = None
+    if value is None:
+        return default
 
-    model: str = "gpt-5.6-luna"
+    normalized = value.lower()
 
-    temperature: float = 0.2
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
 
-    enabled: bool = False
+    if normalized in {"0", "false", "no", "off"}:
+        return False
 
-    request_timeout: float = 60.0
-
-    max_tokens: int = 4096
+    return default
 
 
-@dataclass(frozen=True, slots=True)
-class OANDASettings:
+def _get_int(name: str, default: int) -> int:
     """
-    OANDA market-data configuration.
+    Read an integer environment variable safely.
     """
+    value = _get_env(name)
 
-    api_key: str | None = None
+    if value is None:
+        return default
 
-    base_url: str = (
-        "https://api-fxpractice.oanda.com/v3"
-    )
-
-    enabled: bool = True
-
-    timeout: float = 30.0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
-@dataclass(frozen=True, slots=True)
-class FinnhubSettings:
+def _get_float(name: str, default: float) -> float:
     """
-    Finnhub market-data configuration.
+    Read a floating-point environment variable safely.
     """
+    value = _get_env(name)
 
-    api_key: str | None = None
+    if value is None:
+        return default
 
-    base_url: str = (
-        "https://finnhub.io/api/v1"
-    )
-
-    enabled: bool = True
-
-    timeout: float = 20.0
-
-
-@dataclass(frozen=True, slots=True)
-class AlphaVantageSettings:
-    """
-    Alpha Vantage market-data configuration.
-    """
-
-    api_key: str | None = None
-
-    base_url: str = (
-        "https://www.alphavantage.co/query"
-    )
-
-    enabled: bool = True
-
-    timeout: float = 30.0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
-@dataclass(frozen=True, slots=True)
-class MarketDataSettings:
-    """
-    Global market-data configuration.
-    """
-
-    default_provider: str = "oanda"
-
-    fallback_enabled: bool = True
-
-    fallback_providers: tuple[str, ...] = (
-        "oanda",
-        "finnhub",
-        "alphavantage",
-    )
-
-    default_candle_limit: int = 500
-
-    max_candle_limit: int = 5000
-
-    cache_enabled: bool = True
-
-    cache_ttl_seconds: int = 15
-
-
-@dataclass(frozen=True, slots=True)
-class AnalysisSettings:
-    """
-    Market-analysis configuration.
-
-    These settings control the analysis engine rather than
-    any specific trading strategy.
-    """
-
-    enabled: bool = True
-
-    minimum_candles: int = 200
-
-    multi_timeframe_enabled: bool = True
-
-    confluence_enabled: bool = True
-
-    minimum_confluence_score: float = 0.65
-
-    minimum_signal_confidence: float = 0.70
-
-    realtime_monitoring_enabled: bool = True
-
-    reanalysis_enabled: bool = True
-
-    reanalysis_interval_seconds: int = 30
-
-
-@dataclass(frozen=True, slots=True)
-class RiskSettings:
-    """
-    Risk-management configuration.
-
-    These values are intentionally conservative defaults.
-    They do not place trades by themselves.
-    """
-
-    enabled: bool = True
-
-    risk_per_trade_percent: float = 1.0
-
-    maximum_total_risk_percent: float = 3.0
-
-    maximum_open_positions: int = 5
-
-    minimum_risk_reward_ratio: float = 1.5
-
-    maximum_risk_reward_ratio: float = 10.0
-
-    maximum_spread_points: float = 50.0
-
-    stop_loss_required: bool = True
-
-    take_profit_required: bool = True
-
-
-@dataclass(frozen=True, slots=True)
-class MonitoringSettings:
-    """
-    Signal monitoring and lifecycle configuration.
-    """
-
-    enabled: bool = True
-
-    update_interval_seconds: int = 15
-
-    signal_expiration_minutes: int = 240
-
-    notify_on_entry: bool = True
-
-    notify_on_stop_loss_change: bool = True
-
-    notify_on_take_profit_change: bool = True
-
-    notify_on_market_reversal: bool = True
-
-    notify_on_signal_invalidation: bool = True
-
-    notify_on_target_hit: bool = True
-
-    notify_on_position_close: bool = True
-
-
-@dataclass(frozen=True, slots=True)
-class LoggingSettings:
-    """
-    Application logging configuration.
-    """
-
-    level: str = "INFO"
-
-    file_enabled: bool = True
-
-    file_path: str = "logs/app.log"
-
-    console_enabled: bool = True
-
-
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class Settings:
     """
-    Global application configuration.
+    Central application configuration.
 
-    All runtime configuration is loaded from environment
-    variables through the load() factory.
+    Important:
+    Existing project code directly accesses:
 
-    This object is immutable after creation.
+        settings.OANDA_API_KEY
+        settings.FINNHUB_API_KEY
+        settings.ALPHAVANTAGE_API_KEY
+
+    and Telegram code accesses:
+
+        Settings.load().telegram_token
+
+    These names are intentionally preserved for backward compatibility.
     """
 
-    app_name: str = "forex-signal-bot"
+    # ------------------------------------------------------------------
+    # Application
+    # ------------------------------------------------------------------
 
+    app_name: str = "Professional Trading Bot"
     environment: str = "development"
-
     debug: bool = False
 
-    version: str = "1.0.0"
+    # ------------------------------------------------------------------
+    # Telegram
+    # ------------------------------------------------------------------
 
-    telegram: TelegramSettings = TelegramSettings()
+    telegram_token: Optional[str] = None
+    telegram_enabled: bool = False
 
-    ai: AISettings = AISettings()
+    # ------------------------------------------------------------------
+    # Market Data Providers
+    #
+    # Keep these exact names because existing clients use them directly.
+    # ------------------------------------------------------------------
 
-    oanda: OANDASettings = OANDASettings()
+    OANDA_API_KEY: Optional[str] = None
+    FINNHUB_API_KEY: Optional[str] = None
+    ALPHAVANTAGE_API_KEY: Optional[str] = None
 
-    finnhub: FinnhubSettings = FinnhubSettings()
+    # ------------------------------------------------------------------
+    # Trading / Market configuration
+    # ------------------------------------------------------------------
 
-    alphavantage: AlphaVantageSettings = (
-        AlphaVantageSettings()
-    )
+    default_symbol: str = "EURUSD"
+    default_timeframe: str = "1h"
 
-    market_data: MarketDataSettings = (
-        MarketDataSettings()
-    )
+    # ------------------------------------------------------------------
+    # Risk management
+    # ------------------------------------------------------------------
 
-    analysis: AnalysisSettings = (
-        AnalysisSettings()
-    )
+    risk_per_trade: float = 0.01
+    max_open_positions: int = 5
 
-    risk: RiskSettings = RiskSettings()
+    # ------------------------------------------------------------------
+    # System
+    # ------------------------------------------------------------------
 
-    monitoring: MonitoringSettings = (
-        MonitoringSettings()
-    )
+    timezone: str = "UTC"
+    log_level: str = "INFO"
 
-    logging: LoggingSettings = LoggingSettings()
+    # ------------------------------------------------------------------
+    # AI / Analysis
+    # ------------------------------------------------------------------
+
+    ai_enabled: bool = True
+
+    # ------------------------------------------------------------------
+    # Networking
+    # ------------------------------------------------------------------
+
+    request_timeout: int = 30
+    max_retries: int = 3
 
     @classmethod
+    @lru_cache(maxsize=1)
     def load(cls) -> "Settings":
         """
-        Load complete application configuration
-        from environment variables.
+        Load settings from environment variables.
+
+        Environment variables are optional so that:
+        - unit tests can run without real API keys
+        - local development does not require every service
+        - providers can be initialized safely
         """
 
-        ai_api_key = get_env(
-            "AI_API_KEY"
-        )
-
-        ai_enabled = (
-            get_bool_env(
-                "AI_ENABLED",
-                bool(ai_api_key),
-            )
-        )
-
-        fallback_providers = tuple(
-            get_list_env(
-                "MARKET_DATA_FALLBACK_PROVIDERS",
-                [
-                    "oanda",
-                    "finnhub",
-                    "alphavantage",
-                ],
-            )
-        )
+        telegram_token = _get_env("TELEGRAM_BOT_TOKEN")
 
         return cls(
-            app_name=get_env(
+            # Application
+            app_name=_get_env(
                 "APP_NAME",
-                "forex-signal-bot",
-            )
-            or "forex-signal-bot",
-
-            environment=get_env(
-                "APP_ENV",
+                "Professional Trading Bot",
+            ),
+            environment=_get_env(
+                "ENVIRONMENT",
                 "development",
-            )
-            or "development",
-
-            debug=get_bool_env(
+            ),
+            debug=_get_bool(
                 "DEBUG",
                 False,
             ),
 
-            version=get_env(
-                "APP_VERSION",
-                "1.0.0",
-            )
-            or "1.0.0",
+            # Telegram
+            telegram_token=telegram_token,
+            telegram_enabled=bool(telegram_token),
 
-            telegram=TelegramSettings(
-                token=get_env(
-                    "TELEGRAM_BOT_TOKEN"
-                ),
-                enabled=get_bool_env(
-                    "TELEGRAM_ENABLED",
-                    True,
-                ),
-                parse_mode=get_env(
-                    "TELEGRAM_PARSE_MODE",
-                    "HTML",
-                )
-                or "HTML",
-                polling_timeout=get_int_env(
-                    "TELEGRAM_POLLING_TIMEOUT",
-                    30,
-                ),
-                request_timeout=get_float_env(
-                    "TELEGRAM_REQUEST_TIMEOUT",
-                    30.0,
-                ),
+            # Market data APIs
+            OANDA_API_KEY=_get_env(
+                "OANDA_API_KEY",
+            ),
+            FINNHUB_API_KEY=_get_env(
+                "FINNHUB_API_KEY",
+            ),
+            ALPHAVANTAGE_API_KEY=_get_env(
+                "ALPHAVANTAGE_API_KEY",
             ),
 
-            ai=AISettings(
-                api_key=ai_api_key,
-                model=get_env(
-                    "AI_MODEL",
-                    "gpt-5.6-luna",
-                )
-                or "gpt-5.6-luna",
-                temperature=max(
-                    0.0,
-                    min(
-                        2.0,
-                        get_float_env(
-                            "AI_TEMPERATURE",
-                            0.2,
-                        ),
-                    ),
-                ),
-                enabled=ai_enabled,
-                request_timeout=get_float_env(
-                    "AI_REQUEST_TIMEOUT",
-                    60.0,
-                ),
-                max_tokens=get_int_env(
-                    "AI_MAX_TOKENS",
-                    4096,
-                ),
+            # Trading
+            default_symbol=_get_env(
+                "DEFAULT_SYMBOL",
+                "EURUSD",
+            ),
+            default_timeframe=_get_env(
+                "DEFAULT_TIMEFRAME",
+                "1h",
             ),
 
-            oanda=OANDASettings(
-                api_key=get_env(
-                    "OANDA_API_KEY"
-                ),
-                base_url=get_env(
-                    "OANDA_BASE_URL",
-                    "https://api-fxpractice.oanda.com/v3",
-                )
-                or "https://api-fxpractice.oanda.com/v3",
-                enabled=get_bool_env(
-                    "OANDA_ENABLED",
-                    True,
-                ),
-                timeout=get_float_env(
-                    "OANDA_TIMEOUT",
-                    30.0,
-                ),
+            # Risk
+            risk_per_trade=_get_float(
+                "RISK_PER_TRADE",
+                0.01,
+            ),
+            max_open_positions=_get_int(
+                "MAX_OPEN_POSITIONS",
+                5,
             ),
 
-            finnhub=FinnhubSettings(
-                api_key=get_env(
-                    "FINNHUB_API_KEY"
-                ),
-                base_url=get_env(
-                    "FINNHUB_BASE_URL",
-                    "https://finnhub.io/api/v1",
-                )
-                or "https://finnhub.io/api/v1",
-                enabled=get_bool_env(
-                    "FINNHUB_ENABLED",
-                    True,
-                ),
-                timeout=get_float_env(
-                    "FINNHUB_TIMEOUT",
-                    20.0,
-                ),
+            # System
+            timezone=_get_env(
+                "TIMEZONE",
+                "UTC",
+            ),
+            log_level=_get_env(
+                "LOG_LEVEL",
+                "INFO",
             ),
 
-            alphavantage=AlphaVantageSettings(
-                api_key=get_env(
-                    "ALPHAVANTAGE_API_KEY"
-                ),
-                base_url=get_env(
-                    "ALPHAVANTAGE_BASE_URL",
-                    "https://www.alphavantage.co/query",
-                )
-                or "https://www.alphavantage.co/query",
-                enabled=get_bool_env(
-                    "ALPHAVANTAGE_ENABLED",
-                    True,
-                ),
-                timeout=get_float_env(
-                    "ALPHAVANTAGE_TIMEOUT",
-                    30.0,
-                ),
+            # AI
+            ai_enabled=_get_bool(
+                "AI_ENABLED",
+                True,
             ),
 
-            market_data=MarketDataSettings(
-                default_provider=get_env(
-                    "MARKET_DATA_DEFAULT_PROVIDER",
-                    "oanda",
-                )
-                or "oanda",
-
-                fallback_enabled=get_bool_env(
-                    "MARKET_DATA_FALLBACK_ENABLED",
-                    True,
-                ),
-
-                fallback_providers=fallback_providers,
-
-                default_candle_limit=get_int_env(
-                    "MARKET_DATA_DEFAULT_CANDLE_LIMIT",
-                    500,
-                ),
-
-                max_candle_limit=get_int_env(
-                    "MARKET_DATA_MAX_CANDLE_LIMIT",
-                    5000,
-                ),
-
-                cache_enabled=get_bool_env(
-                    "MARKET_DATA_CACHE_ENABLED",
-                    True,
-                ),
-
-                cache_ttl_seconds=get_int_env(
-                    "MARKET_DATA_CACHE_TTL_SECONDS",
-                    15,
-                ),
+            # Networking
+            request_timeout=_get_int(
+                "REQUEST_TIMEOUT",
+                30,
             ),
-
-            analysis=AnalysisSettings(
-                enabled=get_bool_env(
-                    "ANALYSIS_ENABLED",
-                    True,
-                ),
-
-                minimum_candles=get_int_env(
-                    "ANALYSIS_MINIMUM_CANDLES",
-                    200,
-                ),
-
-                multi_timeframe_enabled=get_bool_env(
-                    "ANALYSIS_MULTI_TIMEFRAME_ENABLED",
-                    True,
-                ),
-
-                confluence_enabled=get_bool_env(
-                    "ANALYSIS_CONFLUENCE_ENABLED",
-                    True,
-                ),
-
-                minimum_confluence_score=get_float_env(
-                    "ANALYSIS_MINIMUM_CONFLUENCE_SCORE",
-                    0.65,
-                ),
-
-                minimum_signal_confidence=get_float_env(
-                    "ANALYSIS_MINIMUM_SIGNAL_CONFIDENCE",
-                    0.70,
-                ),
-
-                realtime_monitoring_enabled=get_bool_env(
-                    "ANALYSIS_REALTIME_MONITORING_ENABLED",
-                    True,
-                ),
-
-                reanalysis_enabled=get_bool_env(
-                    "ANALYSIS_REANALYSIS_ENABLED",
-                    True,
-                ),
-
-                reanalysis_interval_seconds=get_int_env(
-                    "ANALYSIS_REANALYSIS_INTERVAL_SECONDS",
-                    30,
-                ),
-            ),
-
-            risk=RiskSettings(
-                enabled=get_bool_env(
-                    "RISK_ENABLED",
-                    True,
-                ),
-
-                risk_per_trade_percent=get_float_env(
-                    "RISK_PER_TRADE_PERCENT",
-                    1.0,
-                ),
-
-                maximum_total_risk_percent=get_float_env(
-                    "RISK_MAX_TOTAL_PERCENT",
-                    3.0,
-                ),
-
-                maximum_open_positions=get_int_env(
-                    "RISK_MAX_OPEN_POSITIONS",
-                    5,
-                ),
-
-                minimum_risk_reward_ratio=get_float_env(
-                    "RISK_MIN_RR",
-                    1.5,
-                ),
-
-                maximum_risk_reward_ratio=get_float_env(
-                    "RISK_MAX_RR",
-                    10.0,
-                ),
-
-                maximum_spread_points=get_float_env(
-                    "RISK_MAX_SPREAD_POINTS",
-                    50.0,
-                ),
-
-                stop_loss_required=get_bool_env(
-                    "RISK_STOP_LOSS_REQUIRED",
-                    True,
-                ),
-
-                take_profit_required=get_bool_env(
-                    "RISK_TAKE_PROFIT_REQUIRED",
-                    True,
-                ),
-            ),
-
-            monitoring=MonitoringSettings(
-                enabled=get_bool_env(
-                    "MONITORING_ENABLED",
-                    True,
-                ),
-
-                update_interval_seconds=get_int_env(
-                    "MONITORING_UPDATE_INTERVAL_SECONDS",
-                    15,
-                ),
-
-                signal_expiration_minutes=get_int_env(
-                    "MONITORING_SIGNAL_EXPIRATION_MINUTES",
-                    240,
-                ),
-
-                notify_on_entry=get_bool_env(
-                    "MONITORING_NOTIFY_ON_ENTRY",
-                    True,
-                ),
-
-                notify_on_stop_loss_change=get_bool_env(
-                    "MONITORING_NOTIFY_ON_SL_CHANGE",
-                    True,
-                ),
-
-                notify_on_take_profit_change=get_bool_env(
-                    "MONITORING_NOTIFY_ON_TP_CHANGE",
-                    True,
-                ),
-
-                notify_on_market_reversal=get_bool_env(
-                    "MONITORING_NOTIFY_ON_REVERSAL",
-                    True,
-                ),
-
-                notify_on_signal_invalidation=get_bool_env(
-                    "MONITORING_NOTIFY_ON_INVALIDATION",
-                    True,
-                ),
-
-                notify_on_target_hit=get_bool_env(
-                    "MONITORING_NOTIFY_ON_TARGET_HIT",
-                    True,
-                ),
-
-                notify_on_position_close=get_bool_env(
-                    "MONITORING_NOTIFY_ON_CLOSE",
-                    True,
-                ),
-            ),
-
-            logging=LoggingSettings(
-                level=(
-                    get_env(
-                        "LOG_LEVEL",
-                        "INFO",
-                    )
-                    or "INFO"
-                ).upper(),
-
-                file_enabled=get_bool_env(
-                    "LOG_FILE_ENABLED",
-                    True,
-                ),
-
-                file_path=get_env(
-                    "LOG_FILE_PATH",
-                    "logs/app.log",
-                )
-                or "logs/app.log",
-
-                console_enabled=get_bool_env(
-                    "LOG_CONSOLE_ENABLED",
-                    True,
-                ),
+            max_retries=_get_int(
+                "MAX_RETRIES",
+                3,
             ),
         )
 
-    def validate(self) -> None:
-        """
-        Validate configuration consistency.
 
-        This method should be called during application startup.
-        """
-
-        valid_environments = {
-            "development",
-            "testing",
-            "staging",
-            "production",
-        }
-
-        if self.environment not in valid_environments:
-            raise ValueError(
-                f"Unsupported APP_ENV: {self.environment}"
-            )
-
-        if self.market_data.default_candle_limit < 1:
-            raise ValueError(
-                "Default candle limit must be greater than zero."
-            )
-
-        if (
-            self.market_data.max_candle_limit
-            < self.market_data.default_candle_limit
-        ):
-            raise ValueError(
-                "Maximum candle limit cannot be lower "
-                "than default candle limit."
-            )
-
-        if not 0.0 <= self.analysis.minimum_confluence_score <= 1.0:
-            raise ValueError(
-                "Minimum confluence score must be between 0 and 1."
-            )
-
-        if not 0.0 <= self.analysis.minimum_signal_confidence <= 1.0:
-            raise ValueError(
-                "Minimum signal confidence must be between 0 and 1."
-            )
-
-        if self.risk.risk_per_trade_percent <= 0:
-            raise ValueError(
-                "Risk per trade must be greater than zero."
-            )
-
-        if self.risk.maximum_total_risk_percent <= 0:
-            raise ValueError(
-                "Maximum total risk must be greater than zero."
-            )
-
-        if (
-            self.risk.minimum_risk_reward_ratio <= 0
-        ):
-            raise ValueError(
-                "Minimum risk/reward ratio must be greater than zero."
-            )
-
-        if (
-            self.risk.maximum_risk_reward_ratio
-            < self.risk.minimum_risk_reward_ratio
-        ):
-            raise ValueError(
-                "Maximum risk/reward ratio cannot be lower "
-                "than minimum risk/reward ratio."
-            )
-
-        if self.risk.maximum_open_positions < 1:
-            raise ValueError(
-                "Maximum open positions must be at least one."
-            )
-
-        if self.monitoring.update_interval_seconds < 1:
-            raise ValueError(
-                "Monitoring update interval must be at least one second."
-            )
-
+# ----------------------------------------------------------------------
+# Global settings instance
+#
+# Existing project files import/use:
+#
+#     from config.settings import settings
+#
+# and then access:
+#
+#     settings.OANDA_API_KEY
+#     settings.FINNHUB_API_KEY
+#     settings.ALPHAVANTAGE_API_KEY
+#
+# ----------------------------------------------------------------------
 
 settings = Settings.load()
+
+
+__all__ = [
+    "Settings",
+    "settings",
+]
 
