@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 import pandas as pd
 
+from data.base import MarketDataProvider
 from data.factory import ProviderFactory
 from data.models import Candle
 from data.provider_manager import ProviderManager
@@ -16,14 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class MarketDataEngine:
-    """
-    Unified market-data facade.
-
-    Provider selection, retry, fallback and cooldown are delegated to
-    ProviderManager. This class owns the application-facing representation
-    and performs the final deterministic data-quality gate before candles
-    enter downstream analysis.
-    """
+    """Unified application-facing market-data facade."""
 
     def __init__(
         self,
@@ -36,34 +30,17 @@ class MarketDataEngine:
         )
         self._oanda_provider: Any | None = None
 
-    # ------------------------------------------------------------------
-    # Validation / normalization
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _validate_request(
         symbol: str,
         timeframe: str,
         limit: int,
     ) -> tuple[str, str, int]:
-        if not isinstance(symbol, str):
-            raise TypeError("symbol must be a string.")
-        if not symbol.strip():
-            raise ValueError("symbol cannot be empty.")
-
-        if not isinstance(timeframe, str):
-            raise TypeError("timeframe must be a string.")
-        if not timeframe.strip():
-            raise ValueError("timeframe cannot be empty.")
-
-        if isinstance(limit, bool) or not isinstance(limit, int):
-            raise TypeError("limit must be an integer.")
-        if limit < 1:
-            raise ValueError("limit must be greater than zero.")
-
+        """Normalize requests through the canonical provider contract."""
+        MarketDataProvider.validate_request(symbol, timeframe, limit)
         return (
-            symbol.strip().upper(),
-            timeframe.strip().upper(),
+            MarketDataProvider.normalize_symbol(symbol),
+            MarketDataProvider.normalize_timeframe(timeframe),
             limit,
         )
 
@@ -73,14 +50,7 @@ class MarketDataEngine:
         *,
         expected_symbol: str,
     ) -> list[Candle]:
-        """
-        Apply the final quality gate to provider-manager output.
-
-        Gap detection is intentionally not enabled here. FX markets have
-        legitimate calendar gaps (for example weekends and market holidays),
-        so a normal retrieval request must not reject an otherwise valid
-        series merely because two consecutive candles are not adjacent.
-        """
+        """Apply the final deterministic data-quality gate."""
         try:
             return DataQuality.validate(
                 candles,
@@ -98,12 +68,7 @@ class MarketDataEngine:
     def _validate_dataframe(
         dataframe: pd.DataFrame,
     ) -> pd.DataFrame:
-        """
-        Validate and normalize an OHLCV DataFrame.
-
-        The returned frame always has a UTC DatetimeIndex and the
-        canonical columns: open, high, low, close, volume.
-        """
+        """Validate and normalize an OHLCV DataFrame."""
         required = ["open", "high", "low", "close"]
 
         if dataframe is None or dataframe.empty:
@@ -140,15 +105,9 @@ class MarketDataEngine:
             frame["volume"] = 0.0
 
         for column in [*required, "volume"]:
-            frame[column] = pd.to_numeric(
-                frame[column],
-                errors="coerce",
-            )
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
 
-        frame = frame.dropna(
-            subset=[*required, "volume"],
-        )
-
+        frame = frame.dropna(subset=[*required, "volume"])
         frame = frame[
             (frame["open"] > 0)
             & (frame["high"] > 0)
@@ -166,10 +125,7 @@ class MarketDataEngine:
         return frame[["open", "high", "low", "close", "volume"]]
 
     @classmethod
-    def _candles_to_dataframe(
-        cls,
-        candles: list[Candle],
-    ) -> pd.DataFrame:
+    def _candles_to_dataframe(cls, candles: list[Candle]) -> pd.DataFrame:
         if not candles:
             return cls._validate_dataframe(pd.DataFrame())
 
@@ -184,17 +140,13 @@ class MarketDataEngine:
 
         return cls._validate_dataframe(frame)
 
-    # ------------------------------------------------------------------
-    # Canonical API
-    # ------------------------------------------------------------------
-
     async def get_candles(
         self,
         symbol: str,
         timeframe: str,
         limit: int = 100,
     ) -> pd.DataFrame:
-        """Fetch canonical candles through ProviderManager and quality-gate them."""
+        """Fetch canonical candles through ProviderManager."""
         normalized_symbol, normalized_timeframe, normalized_limit = (
             self._validate_request(symbol, timeframe, limit)
         )
@@ -232,10 +184,6 @@ class MarketDataEngine:
             candles,
             expected_symbol=normalized_symbol,
         )
-
-    # ------------------------------------------------------------------
-    # Backwards-compatible provider-specific methods
-    # ------------------------------------------------------------------
 
     async def get_finnhub_candles(
         self,
@@ -325,13 +273,7 @@ class MarketDataEngine:
         self,
         instrument: str,
     ) -> Optional[dict[str, Any]]:
-        """
-        Backwards-compatible latest OANDA price helper.
-
-        Price snapshots are not part of the Candle contract, so this
-        narrow operation remains delegated to the OANDA client's
-        specialized endpoint. Candle retrieval never uses it.
-        """
+        """Return the latest OANDA price snapshot."""
         if not isinstance(instrument, str):
             raise TypeError("instrument must be a string.")
         if not instrument.strip():
