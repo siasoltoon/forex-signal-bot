@@ -21,9 +21,6 @@ logger = logging.getLogger(__name__)
 class MarketDataEngine:
     """Unified application-facing market-data facade."""
 
-    # Canonical project notation is unit-first (M15/H1/D1/W1).
-    # Numeric-first notation (15m/1h/1d/1w) is also accepted because
-    # providers and legacy callers may still use it.
     _TIMEFRAME_PATTERN = re.compile(
         r"^(?:(?P<unit_first>[mhdw])(?P<value_first>\d+)|(?P<value>\d+)(?P<unit>[mhdw]))$",
         re.IGNORECASE,
@@ -51,7 +48,6 @@ class MarketDataEngine:
         timeframe: str,
         limit: int,
     ) -> tuple[str, str, int]:
-        """Normalize requests through the canonical provider contract."""
         MarketDataProvider.validate_request(symbol, timeframe, limit)
         return (
             MarketDataProvider.normalize_symbol(symbol),
@@ -61,7 +57,6 @@ class MarketDataEngine:
 
     @staticmethod
     def _timeframe_to_timedelta(timeframe: str) -> timedelta:
-        """Convert canonical or legacy timeframe notation to a duration."""
         if not isinstance(timeframe, str):
             raise TypeError("timeframe must be a string.")
 
@@ -94,7 +89,6 @@ class MarketDataEngine:
         *,
         timeframe: str,
     ) -> FreshnessReport | None:
-        """Apply the final freshness gate to the latest validated candle."""
         if not candles:
             return None
 
@@ -122,69 +116,57 @@ class MarketDataEngine:
 
         return report
 
-    @staticmethod
+    @classmethod
     def _validate_candles(
+        cls,
         candles: list[Candle],
         *,
         expected_symbol: str,
+        timeframe: str,
     ) -> list[Candle]:
-        """Apply the final deterministic data-quality gate."""
+        """Apply the final deterministic data-quality and gap gates."""
         try:
             return DataQuality.validate(
                 candles,
                 expected_symbol=expected_symbol,
+                expected_interval=cls._timeframe_to_timedelta(timeframe),
             )
         except (TypeError, ValueError) as exc:
             logger.error(
-                "Market data quality validation failed for %s: %s",
+                "Market data quality validation failed for %s/%s: %s",
                 expected_symbol,
+                timeframe,
                 exc,
             )
             raise
 
     @staticmethod
-    def _validate_dataframe(
-        dataframe: pd.DataFrame,
-    ) -> pd.DataFrame:
-        """Validate and normalize an OHLCV DataFrame."""
+    def _validate_dataframe(dataframe: pd.DataFrame) -> pd.DataFrame:
         required = ["open", "high", "low", "close"]
-
         if dataframe is None or dataframe.empty:
             return pd.DataFrame(
                 columns=[*required, "volume"],
                 index=pd.DatetimeIndex([], tz="UTC"),
             )
-
         frame = dataframe.copy()
-
         if not isinstance(frame.index, pd.DatetimeIndex):
             if "timestamp" not in frame.columns:
                 raise ValueError(
                     "Market data must have a DatetimeIndex or timestamp column."
                 )
             frame["timestamp"] = pd.to_datetime(
-                frame["timestamp"],
-                utc=True,
-                errors="coerce",
+                frame["timestamp"], utc=True, errors="coerce"
             )
             frame = frame.set_index("timestamp")
         else:
-            frame.index = pd.to_datetime(
-                frame.index,
-                utc=True,
-                errors="coerce",
-            )
-
+            frame.index = pd.to_datetime(frame.index, utc=True, errors="coerce")
         missing = [column for column in required if column not in frame.columns]
         if missing:
             raise ValueError(f"Missing OHLC columns: {missing}")
-
         if "volume" not in frame.columns:
             frame["volume"] = 0.0
-
         for column in [*required, "volume"]:
             frame[column] = pd.to_numeric(frame[column], errors="coerce")
-
         frame = frame.dropna(subset=[*required, "volume"])
         frame = frame[
             (frame["open"] > 0)
@@ -195,27 +177,21 @@ class MarketDataEngine:
             & (frame["high"] >= frame[["open", "close", "low"]].max(axis=1))
             & (frame["low"] <= frame[["open", "close", "high"]].min(axis=1))
         ]
-
         frame = frame[~frame.index.isna()]
         frame = frame[~frame.index.duplicated(keep="last")]
         frame = frame.sort_index()
-
         return frame[["open", "high", "low", "close", "volume"]]
 
     @classmethod
     def _candles_to_dataframe(cls, candles: list[Candle]) -> pd.DataFrame:
         if not candles:
             return cls._validate_dataframe(pd.DataFrame())
-
         rows = [candle.to_dict() for candle in candles]
         frame = pd.DataFrame(rows)
         frame["timestamp"] = pd.to_datetime(
-            frame["timestamp"],
-            utc=True,
-            errors="coerce",
+            frame["timestamp"], utc=True, errors="coerce"
         )
         frame = frame.set_index("timestamp")
-
         return cls._validate_dataframe(frame)
 
     async def _get_quality_gated_candles(
@@ -225,155 +201,94 @@ class MarketDataEngine:
         limit: int,
     ) -> list[Candle]:
         candles = await self.provider_manager.get_candles(
-            symbol=symbol,
-            timeframe=timeframe,
-            limit=limit,
+            symbol=symbol, timeframe=timeframe, limit=limit
         )
         validated = self._validate_candles(
             candles,
             expected_symbol=symbol,
+            timeframe=timeframe,
         )
         self._validate_freshness(validated, timeframe=timeframe)
         return validated
 
     async def get_candles(
-        self,
-        symbol: str,
-        timeframe: str,
-        limit: int = 100,
+        self, symbol: str, timeframe: str, limit: int = 100
     ) -> pd.DataFrame:
-        """Fetch canonical candles through ProviderManager."""
         normalized_symbol, normalized_timeframe, normalized_limit = (
             self._validate_request(symbol, timeframe, limit)
         )
-
         validated = await self._get_quality_gated_candles(
-            normalized_symbol,
-            normalized_timeframe,
-            normalized_limit,
+            normalized_symbol, normalized_timeframe, normalized_limit
         )
         return self._candles_to_dataframe(validated)
 
     async def get_candles_list(
-        self,
-        symbol: str,
-        timeframe: str,
-        limit: int = 100,
+        self, symbol: str, timeframe: str, limit: int = 100
     ) -> list[Candle]:
-        """Return quality- and freshness-gated canonical Candle objects."""
         normalized_symbol, normalized_timeframe, normalized_limit = (
             self._validate_request(symbol, timeframe, limit)
         )
         return await self._get_quality_gated_candles(
-            normalized_symbol,
-            normalized_timeframe,
-            normalized_limit,
+            normalized_symbol, normalized_timeframe, normalized_limit
         )
 
     async def get_finnhub_candles(
-        self,
-        symbol: str,
-        resolution: str,
-        from_timestamp: int,
-        to_timestamp: int,
+        self, symbol: str, resolution: str, from_timestamp: int, to_timestamp: int
     ) -> pd.DataFrame:
-        """Compatibility adapter for the previous Finnhub API."""
         if not isinstance(from_timestamp, int):
             raise TypeError("from_timestamp must be an integer.")
         if not isinstance(to_timestamp, int):
             raise TypeError("to_timestamp must be an integer.")
         if from_timestamp > to_timestamp:
             raise ValueError("from_timestamp cannot exceed to_timestamp.")
-
         normalized_symbol, normalized_timeframe, _ = self._validate_request(
-            symbol,
-            resolution,
-            1,
+            symbol, resolution, 1
         )
-
         validated = await self._get_quality_gated_candles(
-            normalized_symbol,
-            normalized_timeframe,
-            5000,
+            normalized_symbol, normalized_timeframe, 5000
         )
-
         start = datetime.fromtimestamp(from_timestamp, tz=timezone.utc)
         end = datetime.fromtimestamp(to_timestamp, tz=timezone.utc)
-
         filtered = [
-            candle
-            for candle in validated
-            if start <= candle.timestamp <= end
+            candle for candle in validated if start <= candle.timestamp <= end
         ]
-
         return self._candles_to_dataframe(filtered)
 
     async def get_oanda_candles(
-        self,
-        instrument: str,
-        granularity: str = "M15",
-        count: int = 500,
+        self, instrument: str, granularity: str = "M15", count: int = 500
     ) -> pd.DataFrame:
-        """Compatibility adapter for the previous OANDA API."""
         return await self.get_candles(
-            symbol=instrument,
-            timeframe=granularity,
-            limit=count,
+            symbol=instrument, timeframe=granularity, limit=count
         )
 
     async def get_alphavantage_intraday(
-        self,
-        symbol: str,
-        interval: str = "15min",
+        self, symbol: str, interval: str = "15min"
     ) -> pd.DataFrame:
-        """Compatibility adapter for Alpha Vantage intraday requests."""
         interval_map = {
-            "1min": "M1",
-            "5min": "M5",
-            "15min": "M15",
-            "30min": "M30",
-            "60min": "H1",
+            "1min": "M1", "5min": "M5", "15min": "M15",
+            "30min": "M30", "60min": "H1",
         }
-
-        normalized = interval.strip().lower()
-        timeframe = interval_map.get(normalized)
-
+        timeframe = interval_map.get(interval.strip().lower())
         if timeframe is None:
-            raise ValueError(
-                f"Unsupported Alpha Vantage interval: {interval!r}"
-            )
-
-        return await self.get_candles(
-            symbol=symbol,
-            timeframe=timeframe,
-            limit=500,
-        )
+            raise ValueError(f"Unsupported Alpha Vantage interval: {interval!r}")
+        return await self.get_candles(symbol=symbol, timeframe=timeframe, limit=500)
 
     async def get_latest_oanda_price(
-        self,
-        instrument: str,
+        self, instrument: str
     ) -> Optional[dict[str, Any]]:
-        """Return the latest OANDA price snapshot."""
         if not isinstance(instrument, str):
             raise TypeError("instrument must be a string.")
         if not instrument.strip():
             raise ValueError("instrument cannot be empty.")
-
         if self._oanda_provider is None:
             self._oanda_provider = ProviderFactory.create("oanda")
-
         client = getattr(self._oanda_provider, "client", None)
         if client is None or not hasattr(client, "get_price"):
-            raise RuntimeError(
-                "OANDA provider does not expose the price endpoint."
-            )
-
+            raise RuntimeError("OANDA provider does not expose the price endpoint.")
         data = await client.get_price(instrument.strip().upper())
         prices = data.get("prices", [])
-
         if not prices:
             return None
-
         return prices[0]
 
 
