@@ -1,9 +1,3 @@
-from core.application import Application
+from core.application import Application, create_app
 
-
-def create_app() -> Application:
-    """
-    Application factory.
-    """
-
-    return Application()
+__all__ = ["Application", "create_app"]
