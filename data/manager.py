@@ -178,8 +178,9 @@ class DataManager:
 
         The explicit DataManager contract intentionally differs from the
         fallback contract: an empty result is valid and provider-level
-        ApplicationError instances are preserved. ProviderManager remains
-        responsible for invoking and validating the provider result.
+        execution errors are wrapped using the historical DataManager
+        contract. ProviderManager remains responsible for invoking the
+        provider and validating its Candle result.
         """
         if not provider.is_configured():
             raise ApplicationError(
@@ -194,19 +195,32 @@ class DataManager:
         )
 
         try:
-            return await manager.get_candles(
+            candles = await manager._request_with_retry(
+                provider.name,
+                provider,
                 symbol=symbol,
                 timeframe=timeframe,
                 limit=limit,
             )
         except ApplicationError as error:
-            if (
-                error.message == "Provider returned no candles."
-                and error.details.get("provider") == provider.name
-                and error.details.get("symbol") == symbol
-                and error.details.get("timeframe") == timeframe
-            ):
+            if error.message == "Provider returned no candles.":
                 return []
+
+            if error.message in {
+                "Provider returned an invalid candle.",
+                "Provider returned an invalid candle collection.",
+            }:
+                type_error = TypeError(error.message)
+                raise ApplicationError(
+                    "Provider returned invalid candle data.",
+                    {
+                        "provider": provider.name,
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "limit": limit,
+                    },
+                ) from type_error
+
             raise
         except Exception as error:
             logger.exception(
@@ -217,6 +231,22 @@ class DataManager:
             )
             raise ApplicationError(
                 "Failed to fetch market candles.",
+                {
+                    "provider": provider.name,
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "limit": limit,
+                },
+            ) from error
+
+        try:
+            return manager._normalize_candles(
+                candles,
+                limit=limit,
+            )
+        except (TypeError, ValueError) as error:
+            raise ApplicationError(
+                "Provider returned invalid candle data.",
                 {
                     "provider": provider.name,
                     "symbol": symbol,
