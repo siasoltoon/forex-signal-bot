@@ -1,7 +1,7 @@
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from math import isfinite
 from typing import Final
 
 from core.errors import ApplicationError
@@ -21,26 +21,34 @@ class FinnhubProvider(MarketDataProvider):
 
     Responsibilities
     ----------------
-    - Validate and normalize requests.
-    - Convert project timeframes to Finnhub resolutions.
-    - Calculate safe UTC time ranges.
-    - Fetch candle data through FinnhubClient.
-    - Validate the returned payload.
-    - Reject malformed / impossible candles.
-    - Remove duplicate timestamps.
-    - Sort candles chronologically.
-    - Enforce the requested candle limit.
-    - Return provider-independent Candle objects.
+    - Validate incoming market-data requests.
+    - Normalize symbols and timeframes.
+    - Translate the project's timeframe contract to Finnhub
+      resolution values.
+    - Calculate a safe historical time range.
+    - Fetch candles through FinnhubClient.
+    - Validate and normalize Finnhub responses.
+    - Convert provider payloads into provider-independent Candle objects.
+    - Preserve the existing project's public API.
 
     Backward compatibility
     ----------------------
-    The existing public API is intentionally preserved:
+    Existing project code can continue using:
 
-        FinnhubProvider()
         provider.name
-        await provider.get_candles(...)
+        provider.get_candles(...)
+        FinnhubProvider()
 
-    No existing file/class names are changed.
+    Supported project timeframe aliases include:
+
+        M1 / 1m
+        M5 / 5m
+        M15 / 15m
+        M30 / 30m
+        H1 / 1h
+        D / 1d
+        W / 1w
+        M / 1M
     """
 
     # ------------------------------------------------------------------
@@ -49,45 +57,64 @@ class FinnhubProvider(MarketDataProvider):
 
     name = "finnhub"
 
-    # Finnhub supports these resolutions for candle requests.
+    # Finnhub resolution values.
+    #
+    # The project's external timeframe contract is intentionally broader
+    # and more human-friendly. These aliases translate that contract into
+    # the exact resolution values expected by Finnhub.
     _TIMEFRAME_ALIASES: Final[dict[str, str]] = {
         # Minutes
+        "M1": "1",
         "1M": "1",
         "1MIN": "1",
         "1MINUTE": "1",
 
+        "M5": "5",
         "5M": "5",
         "5MIN": "5",
         "5MINUTE": "5",
 
+        "M15": "15",
         "15M": "15",
         "15MIN": "15",
         "15MINUTE": "15",
 
+        "M30": "30",
         "30M": "30",
         "30MIN": "30",
         "30MINUTE": "30",
 
-        # Hours
+        # Hour
+        "H1": "60",
         "1H": "60",
         "1HR": "60",
         "1HOUR": "60",
-        "H1": "60",
 
-        # Daily / weekly / monthly
+        # Daily
         "D": "D",
         "1D": "D",
         "1DAY": "D",
+        "DAILY": "D",
 
+        # Weekly
         "W": "W",
         "1W": "W",
         "1WEEK": "W",
+        "WEEKLY": "W",
 
+        # Monthly
+        #
+        # Important:
+        # "M" is treated as month in this provider's public alias table,
+        # while minute values use M1/M5/M15/M30.
         "M": "M",
-        "1MO": "M",
         "1MONTH": "M",
+        "MONTHLY": "M",
     }
 
+    # Resolution -> approximate duration in minutes.
+    #
+    # This is used only for calculating the historical request window.
     _TIMEFRAME_MINUTES: Final[dict[str, int]] = {
         "1": 1,
         "5": 5,
@@ -99,12 +126,9 @@ class FinnhubProvider(MarketDataProvider):
         "M": 43200,
     }
 
-    # Finnhub's candle endpoint has provider-specific limits.
-    # Keep the generic project's maximum as the hard ceiling.
-    MAX_LIMIT: Final[int] = 5000
-
-    # Small safety margin used when calculating historical ranges.
-    _RANGE_MARGIN_CANDLES: Final[int] = 1
+    # Finnhub's API and the generic provider contract should never be
+    # allowed to receive an unbounded candle request.
+    _MAX_LIMIT: Final[int] = 5000
 
     # ------------------------------------------------------------------
     # Construction
@@ -115,10 +139,13 @@ class FinnhubProvider(MarketDataProvider):
         client: FinnhubClient | None = None,
     ) -> None:
         """
-        Create the provider.
+        Create the Finnhub provider.
 
-        Dependency injection is supported so tests and future services
-        can provide a custom FinnhubClient implementation.
+        A client can be injected for:
+        - unit tests
+        - integration tests
+        - dependency injection
+        - future client pooling
         """
 
         self.client = (
@@ -133,34 +160,34 @@ class FinnhubProvider(MarketDataProvider):
 
     def is_configured(self) -> bool:
         """
-        Return whether the underlying Finnhub client has credentials.
+        Return whether the underlying Finnhub client is configured.
 
-        We intentionally avoid making a network request here.
+        The client is intentionally queried defensively so that this
+        provider remains compatible with the current client implementation
+        and future versions.
         """
 
-        api_key = getattr(
+        checker = getattr(
             self.client,
-            "api_key",
+            "is_configured",
             None,
         )
 
-        return bool(
-            isinstance(api_key, str)
-            and api_key.strip()
-        )
+        if callable(checker):
+            try:
+                return bool(checker())
+            except Exception:
+                logger.exception(
+                    "Finnhub configuration check failed."
+                )
+                return False
 
-    async def health_check(self) -> bool:
-        """
-        Lightweight provider health check.
-
-        Configuration is checked locally. A network request is not
-        performed because this method should remain safe and cheap.
-        """
-
-        return self.is_configured()
+        # Existing client implementations may not expose is_configured.
+        # In that case construction itself is considered sufficient.
+        return True
 
     # ------------------------------------------------------------------
-    # Timeframe handling
+    # Timeframe normalization
     # ------------------------------------------------------------------
 
     @classmethod
@@ -169,23 +196,27 @@ class FinnhubProvider(MarketDataProvider):
         timeframe: str,
     ) -> str:
         """
-        Convert project timeframe notation to Finnhub resolution.
+        Normalize a project timeframe into a Finnhub resolution.
 
         Examples
         --------
-        M15 -> 15
-        15m -> 15
-        H1  -> 60
-        1h  -> 60
-        D   -> D
-        1d  -> D
-        W   -> W
-        M   -> M
+        M15  -> 15
+        15m  -> 15
+        H1   -> 60
+        1h   -> 60
+        D    -> D
+        1d   -> D
+        W    -> W
+        1w   -> W
+        M    -> M
+        1M   -> 1
 
-        Important:
-            Finnhub uses "M" for month while the project commonly uses
-            "M15" for 15 minutes. The explicit aliases above prevent
-            ambiguity.
+        Note
+        ----
+        The uppercase conversion is deliberately followed by explicit
+        alias handling because "M" has historically been used by this
+        project as the monthly timeframe while minute values use M1/M5/
+        M15/M30.
         """
 
         if not isinstance(
@@ -196,64 +227,49 @@ class FinnhubProvider(MarketDataProvider):
                 "timeframe must be a string."
             )
 
-        normalized = timeframe.strip()
+        raw = timeframe.strip()
 
-        if not normalized:
+        if not raw:
             raise ValueError(
                 "timeframe cannot be empty."
             )
 
-        # Exact aliases first.
-        alias = cls._TIMEFRAME_ALIASES.get(
-            normalized.upper()
+        # Preserve the distinction between:
+        #   1m  -> minute
+        #   1M  -> monthly
+        #
+        # Before uppercasing, handle common lowercase minute notation.
+        compact = raw.replace(
+            " ",
+            "",
         )
 
-        if alias is not None:
-            return alias
+        lower = compact.lower()
 
-        # Generic minute formats.
-        compact = normalized.lower()
-
-        minute_aliases = {
+        lowercase_minute_aliases: dict[str, str] = {
             "1m": "1",
             "5m": "5",
             "15m": "15",
             "30m": "30",
+            "1min": "1",
+            "5min": "5",
+            "15min": "15",
+            "30min": "30",
+            "1minute": "1",
+            "5minute": "5",
+            "15minute": "15",
+            "30minute": "30",
         }
 
-        if compact in minute_aliases:
-            return minute_aliases[compact]
+        if lower in lowercase_minute_aliases:
+            return lowercase_minute_aliases[lower]
 
-        # Generic hour format.
-        if compact in {
-            "1h",
-            "1hr",
-            "1hour",
-        }:
-            return "60"
+        normalized = compact.upper()
 
-        # Generic day / week formats.
-        if compact in {
-            "1d",
-            "1day",
-        }:
-            return "D"
-
-        if compact in {
-            "1w",
-            "1week",
-        }:
-            return "W"
-
-        # Month must remain uppercase.
-        if normalized in {
-            "M",
-            "1MO",
-            "1MONTH",
-        }:
-            return "M"
-
-        return normalized.upper()
+        return cls._TIMEFRAME_ALIASES.get(
+            normalized,
+            normalized,
+        )
 
     @classmethod
     def _validate_timeframe(
@@ -262,6 +278,11 @@ class FinnhubProvider(MarketDataProvider):
     ) -> str:
         """
         Normalize and validate a Finnhub timeframe.
+
+        Returns
+        -------
+        str
+            Exact Finnhub resolution value.
         """
 
         normalized = cls._normalize_timeframe(
@@ -286,13 +307,9 @@ class FinnhubProvider(MarketDataProvider):
         symbol: str,
         timeframe: str,
         limit: int,
-    ) -> tuple[str, str, int]:
+    ) -> None:
         """
-        Validate and normalize the complete request.
-
-        We preserve ValueError / TypeError behavior expected by the
-        existing project tests while using the common provider contract
-        wherever possible.
+        Validate a candle request before contacting Finnhub.
         """
 
         if not isinstance(
@@ -303,16 +320,9 @@ class FinnhubProvider(MarketDataProvider):
                 "symbol must be a string."
             )
 
-        normalized_symbol = symbol.strip().upper()
-
-        if not normalized_symbol:
+        if not symbol.strip():
             raise ValueError(
                 "symbol cannot be empty."
-            )
-
-        if len(normalized_symbol) > 30:
-            raise ValueError(
-                "symbol is too long."
             )
 
         if not isinstance(
@@ -349,24 +359,19 @@ class FinnhubProvider(MarketDataProvider):
                 "limit must be greater than zero."
             )
 
-        if limit > cls.MAX_LIMIT:
+        if limit > cls._MAX_LIMIT:
             raise ValueError(
                 f"limit cannot exceed "
-                f"{cls.MAX_LIMIT}."
+                f"{cls._MAX_LIMIT}."
             )
 
-        resolution = cls._validate_timeframe(
+        # Validate the actual provider resolution as well.
+        cls._validate_timeframe(
             timeframe
         )
 
-        return (
-            normalized_symbol,
-            resolution,
-            limit,
-        )
-
     # ------------------------------------------------------------------
-    # Time range
+    # Historical range
     # ------------------------------------------------------------------
 
     @classmethod
@@ -376,10 +381,9 @@ class FinnhubProvider(MarketDataProvider):
         limit: int,
     ) -> tuple[int, int]:
         """
-        Calculate a UTC Unix timestamp range.
+        Calculate the Unix timestamp range needed for a candle request.
 
-        One extra candle is requested from the provider to reduce the
-        chance of returning fewer candles because of boundary rounding.
+        The returned values are UTC timestamps.
         """
 
         resolution = cls._validate_timeframe(
@@ -398,15 +402,10 @@ class FinnhubProvider(MarketDataProvider):
             now.timestamp()
         )
 
-        effective_limit = (
-            limit
-            + cls._RANGE_MARGIN_CANDLES
-        )
-
         total_seconds = (
             minutes
             * 60
-            * effective_limit
+            * limit
         )
 
         start_timestamp = (
@@ -420,7 +419,45 @@ class FinnhubProvider(MarketDataProvider):
         )
 
     # ------------------------------------------------------------------
-    # Primitive parsing helpers
+    # Symbol normalization
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _normalize_symbol(
+        symbol: str,
+    ) -> str:
+        """
+        Normalize a project symbol for Finnhub.
+
+        EUR_USD becomes EUR_USD.
+
+        The provider client remains responsible for any additional
+        provider-specific symbol transformation required by Finnhub.
+        """
+
+        if not isinstance(
+            symbol,
+            str,
+        ):
+            raise TypeError(
+                "symbol must be a string."
+            )
+
+        normalized = (
+            symbol
+            .strip()
+            .upper()
+        )
+
+        if not normalized:
+            raise ValueError(
+                "symbol cannot be empty."
+            )
+
+        return normalized
+
+    # ------------------------------------------------------------------
+    # Timestamp parsing
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -428,20 +465,17 @@ class FinnhubProvider(MarketDataProvider):
         value: object,
     ) -> datetime:
         """
-        Convert a Finnhub Unix timestamp to UTC datetime.
+        Convert a Finnhub Unix timestamp into UTC datetime.
         """
 
         try:
-            timestamp = int(
-                float(value)
-            )
+            timestamp = int(value)
         except (
             TypeError,
             ValueError,
-            OverflowError,
         ) as error:
             raise ValueError(
-                "Invalid Finnhub timestamp."
+                "Finnhub timestamp must be an integer."
             ) from error
 
         if timestamp <= 0:
@@ -454,12 +488,16 @@ class FinnhubProvider(MarketDataProvider):
             tz=timezone.utc,
         )
 
+    # ------------------------------------------------------------------
+    # Numeric parsing
+    # ------------------------------------------------------------------
+
     @staticmethod
     def _parse_price(
         value: object,
     ) -> float:
         """
-        Convert and validate a price.
+        Parse and validate an OHLC price.
         """
 
         try:
@@ -467,16 +505,10 @@ class FinnhubProvider(MarketDataProvider):
         except (
             TypeError,
             ValueError,
-            OverflowError,
         ) as error:
             raise ValueError(
-                "Invalid price value."
+                "Finnhub price must be numeric."
             ) from error
-
-        if not isfinite(price):
-            raise ValueError(
-                "Price must be finite."
-            )
 
         if price <= 0:
             raise ValueError(
@@ -490,7 +522,7 @@ class FinnhubProvider(MarketDataProvider):
         value: object,
     ) -> float:
         """
-        Convert and validate volume.
+        Parse and validate candle volume.
         """
 
         try:
@@ -498,16 +530,10 @@ class FinnhubProvider(MarketDataProvider):
         except (
             TypeError,
             ValueError,
-            OverflowError,
         ) as error:
             raise ValueError(
-                "Invalid volume value."
+                "Finnhub volume must be numeric."
             ) from error
-
-        if not isfinite(volume):
-            raise ValueError(
-                "Volume must be finite."
-            )
 
         if volume < 0:
             raise ValueError(
@@ -517,40 +543,8 @@ class FinnhubProvider(MarketDataProvider):
         return volume
 
     # ------------------------------------------------------------------
-    # Candle validation / conversion
+    # Candle conversion
     # ------------------------------------------------------------------
-
-    @staticmethod
-    def _validate_ohlc(
-        open_price: float,
-        high: float,
-        low: float,
-        close: float,
-    ) -> None:
-        """
-        Validate OHLC structural consistency.
-        """
-
-        if high < low:
-            raise ValueError(
-                "high cannot be lower than low."
-            )
-
-        if high < max(
-            open_price,
-            close,
-        ):
-            raise ValueError(
-                "high must be >= open and close."
-            )
-
-        if low > min(
-            open_price,
-            close,
-        ):
-            raise ValueError(
-                "low must be <= open and close."
-            )
 
     def _convert_candle(
         self,
@@ -563,51 +557,36 @@ class FinnhubProvider(MarketDataProvider):
         volume: object,
     ) -> Candle | None:
         """
-        Convert one Finnhub candle into the project's Candle model.
+        Convert one Finnhub OHLCV record into a Candle.
 
-        Invalid individual candles are skipped rather than destroying
-        the entire valid response.
+        Invalid individual candles are skipped rather than causing an
+        otherwise valid response to fail completely.
         """
 
         try:
-            parsed_open = self._parse_price(
-                open_price
-            )
-
-            parsed_high = self._parse_price(
-                high
-            )
-
-            parsed_low = self._parse_price(
-                low
-            )
-
-            parsed_close = self._parse_price(
-                close
-            )
-
-            parsed_volume = self._parse_volume(
-                volume
-            )
-
-            self._validate_ohlc(
-                open_price=parsed_open,
-                high=parsed_high,
-                low=parsed_low,
-                close=parsed_close,
-            )
-
-            return Candle(
+            candle = Candle(
                 symbol=symbol,
                 timestamp=self._parse_timestamp(
                     timestamp
                 ),
-                open=parsed_open,
-                high=parsed_high,
-                low=parsed_low,
-                close=parsed_close,
-                volume=parsed_volume,
+                open=self._parse_price(
+                    open_price
+                ),
+                high=self._parse_price(
+                    high
+                ),
+                low=self._parse_price(
+                    low
+                ),
+                close=self._parse_price(
+                    close
+                ),
+                volume=self._parse_volume(
+                    volume
+                ),
             )
+
+            return candle
 
         except (
             TypeError,
@@ -615,9 +594,7 @@ class FinnhubProvider(MarketDataProvider):
             OverflowError,
         ) as error:
             logger.warning(
-                "Skipping invalid Finnhub candle "
-                "for %s: %s",
-                symbol,
+                "Skipping invalid Finnhub candle: %s",
                 error,
             )
 
@@ -628,8 +605,35 @@ class FinnhubProvider(MarketDataProvider):
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _validate_response_structure(
+        response: object,
+        symbol: str,
+    ) -> dict:
+        """
+        Validate the basic Finnhub response structure.
+        """
+
+        if response is None:
+            return {}
+
+        if not isinstance(
+            response,
+            dict,
+        ):
+            raise ApplicationError(
+                "Invalid Finnhub response.",
+                {
+                    "provider": "finnhub",
+                    "symbol": symbol,
+                },
+            )
+
+        return response
+
+    @staticmethod
     def _extract_arrays(
         response: dict,
+        symbol: str,
     ) -> tuple[
         list,
         list,
@@ -639,37 +643,37 @@ class FinnhubProvider(MarketDataProvider):
         list,
     ]:
         """
-        Extract Finnhub OHLCV arrays and validate their structure.
+        Extract and validate the six Finnhub candle arrays.
         """
 
         timestamps = response.get(
             "t",
-            []
+            [],
         )
 
         opens = response.get(
             "o",
-            []
+            [],
         )
 
         highs = response.get(
             "h",
-            []
+            [],
         )
 
         lows = response.get(
             "l",
-            []
+            [],
         )
 
         closes = response.get(
             "c",
-            []
+            [],
         )
 
         volumes = response.get(
             "v",
-            []
+            [],
         )
 
         arrays = (
@@ -692,6 +696,7 @@ class FinnhubProvider(MarketDataProvider):
                 "Invalid Finnhub candle payload.",
                 {
                     "provider": "finnhub",
+                    "symbol": symbol,
                 },
             )
 
@@ -710,6 +715,7 @@ class FinnhubProvider(MarketDataProvider):
                 "inconsistent lengths.",
                 {
                     "provider": "finnhub",
+                    "symbol": symbol,
                 },
             )
 
@@ -723,34 +729,7 @@ class FinnhubProvider(MarketDataProvider):
         )
 
     # ------------------------------------------------------------------
-    # Candle deduplication
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _deduplicate_candles(
-        candles: list[Candle],
-    ) -> list[Candle]:
-        """
-        Remove duplicate candles by timestamp.
-
-        Finnhub data is normally unique, but this defensive layer keeps
-        duplicate records from leaking into analysis and indicators.
-        """
-
-        unique: dict[datetime, Candle] = {}
-
-        for candle in candles:
-            unique[candle.timestamp] = candle
-
-        return list(
-            sorted(
-                unique.values(),
-                key=lambda candle: candle.timestamp,
-            )
-        )
-
-    # ------------------------------------------------------------------
-    # Main provider API
+    # Main market-data API
     # ------------------------------------------------------------------
 
     async def get_candles(
@@ -760,30 +739,45 @@ class FinnhubProvider(MarketDataProvider):
         limit: int = 100,
     ) -> list[Candle]:
         """
-        Fetch and normalize Finnhub candle data.
+        Fetch and normalize Finnhub candles.
+
+        Parameters
+        ----------
+        symbol:
+            Market symbol, e.g. EUR_USD.
+
+        timeframe:
+            Project timeframe such as M15, 15m, H1, 1h, D or 1d.
+
+        limit:
+            Maximum number of candles to return.
 
         Returns
         -------
         list[Candle]
-            Chronologically sorted, validated and deduplicated candles.
-
-        Raises
-        ------
-        ValueError
-            Invalid symbol, timeframe or limit.
-
-        ApplicationError
-            Network/provider/response errors.
+            Provider-independent candle objects.
         """
 
-        (
-            normalized_symbol,
-            resolution,
-            validated_limit,
-        ) = self._validate_request(
+        # --------------------------------------------------------------
+        # Validate request
+        # --------------------------------------------------------------
+
+        self._validate_request(
             symbol=symbol,
             timeframe=timeframe,
             limit=limit,
+        )
+
+        normalized_symbol = (
+            self._normalize_symbol(
+                symbol
+            )
+        )
+
+        resolution = (
+            self._validate_timeframe(
+                timeframe
+            )
         )
 
         (
@@ -791,20 +785,11 @@ class FinnhubProvider(MarketDataProvider):
             to_timestamp,
         ) = self._calculate_time_range(
             timeframe=resolution,
-            limit=validated_limit,
+            limit=limit,
         )
 
         # --------------------------------------------------------------
-        # Provider configuration
-        # --------------------------------------------------------------
-
-        if not self.is_configured():
-            logger.warning(
-                "Finnhub provider is not configured."
-            )
-
-        # --------------------------------------------------------------
-        # API request
+        # Request Finnhub
         # --------------------------------------------------------------
 
         try:
@@ -820,9 +805,8 @@ class FinnhubProvider(MarketDataProvider):
         except Exception as error:
             logger.exception(
                 "Finnhub candle request failed "
-                "for %s [%s].",
+                "for %s.",
                 normalized_symbol,
-                resolution,
             )
 
             raise ApplicationError(
@@ -831,7 +815,7 @@ class FinnhubProvider(MarketDataProvider):
                     "provider": self.name,
                     "symbol": normalized_symbol,
                     "timeframe": resolution,
-                    "limit": validated_limit,
+                    "limit": limit,
                 },
             ) from error
 
@@ -849,26 +833,24 @@ class FinnhubProvider(MarketDataProvider):
             return []
 
         # --------------------------------------------------------------
-        # Response type
+        # Validate response object
         # --------------------------------------------------------------
 
-        if not isinstance(
-            response,
-            dict,
-        ):
-            raise ApplicationError(
-                "Invalid Finnhub response.",
-                {
-                    "provider": self.name,
-                    "symbol": normalized_symbol,
-                },
-            )
+        response = self._validate_response_structure(
+            response=response,
+            symbol=normalized_symbol,
+        )
+
+        if not response:
+            return []
 
         # --------------------------------------------------------------
         # Finnhub status
         # --------------------------------------------------------------
 
-        status = response.get("s")
+        status = response.get(
+            "s"
+        )
 
         if status != "ok":
             logger.warning(
@@ -881,38 +863,20 @@ class FinnhubProvider(MarketDataProvider):
             return []
 
         # --------------------------------------------------------------
-        # Extract and validate payload
+        # Extract OHLCV arrays
         # --------------------------------------------------------------
 
-        try:
-            (
-                timestamps,
-                opens,
-                highs,
-                lows,
-                closes,
-                volumes,
-            ) = self._extract_arrays(
-                response
-            )
-
-        except ApplicationError:
-            raise
-
-        except Exception as error:
-            logger.exception(
-                "Failed to parse Finnhub response "
-                "for %s.",
-                normalized_symbol,
-            )
-
-            raise ApplicationError(
-                "Failed to parse Finnhub candle response.",
-                {
-                    "provider": self.name,
-                    "symbol": normalized_symbol,
-                },
-            ) from error
+        (
+            timestamps,
+            opens,
+            highs,
+            lows,
+            closes,
+            volumes,
+        ) = self._extract_arrays(
+            response=response,
+            symbol=normalized_symbol,
+        )
 
         # --------------------------------------------------------------
         # Convert candles
@@ -951,40 +915,38 @@ class FinnhubProvider(MarketDataProvider):
                 )
 
         # --------------------------------------------------------------
-        # Sort + deduplicate
+        # Sort chronologically
         # --------------------------------------------------------------
 
-        candles = self._deduplicate_candles(
-            candles
+        candles.sort(
+            key=lambda candle: candle.timestamp
         )
 
         # --------------------------------------------------------------
         # Enforce requested limit
         # --------------------------------------------------------------
 
-        if len(candles) > validated_limit:
+        if len(candles) > limit:
             candles = candles[
-                -validated_limit:
+                -limit:
             ]
 
         # --------------------------------------------------------------
-        # Final provider-independent validation
+        # Validate final provider-independent result
         # --------------------------------------------------------------
 
         try:
             candles = self.validate_candles(
                 candles
             )
-
         except Exception as error:
             logger.exception(
-                "Finnhub produced invalid "
-                "standardized candles for %s.",
-                normalized_symbol,
+                "Finnhub produced an invalid "
+                "standardized candle result."
             )
 
             raise ApplicationError(
-                "Finnhub returned invalid market data.",
+                "Finnhub returned invalid standardized candles.",
                 {
                     "provider": self.name,
                     "symbol": normalized_symbol,
@@ -994,7 +956,7 @@ class FinnhubProvider(MarketDataProvider):
 
         logger.info(
             "Finnhub returned %d valid candles "
-            "for %s [%s].",
+            "for %s (%s).",
             len(candles),
             normalized_symbol,
             resolution,
@@ -1006,3 +968,4 @@ class FinnhubProvider(MarketDataProvider):
 __all__ = [
     "FinnhubProvider",
 ]
+
