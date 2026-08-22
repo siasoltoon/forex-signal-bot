@@ -36,6 +36,30 @@ def candles() -> list[Candle]:
 
 
 @pytest.fixture
+def oanda_candles() -> list[Candle]:
+    return [
+        Candle(
+            symbol="EUR_USD",
+            timestamp=datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc),
+            open=1.1000,
+            high=1.1010,
+            low=1.0990,
+            close=1.1005,
+            volume=100.0,
+        ),
+        Candle(
+            symbol="EUR_USD",
+            timestamp=datetime(2026, 1, 1, 0, 2, tzinfo=timezone.utc),
+            open=1.1005,
+            high=1.1020,
+            low=1.1000,
+            close=1.1015,
+            volume=110.0,
+        ),
+    ]
+
+
+@pytest.fixture
 def manager() -> AsyncMock:
     return AsyncMock()
 
@@ -54,7 +78,7 @@ async def test_get_candles_normalizes_request_and_returns_dataframe(manager, can
     assert len(result) == 2
     manager.get_candles.assert_awaited_once_with(
         symbol="EURUSD",
-        timeframe="15M",
+        timeframe="M15",
         limit=2,
     )
 
@@ -112,8 +136,13 @@ async def test_get_candles_returns_empty_normalized_dataframe(manager):
     manager.get_candles.return_value = []
     engine = MarketDataEngine(provider_manager=manager)
 
-    with pytest.raises((TypeError, ValueError)):
-        await engine.get_candles("EURUSD", "15m", limit=10)
+    result = await engine.get_candles("EURUSD", "15m", limit=10)
+
+    assert isinstance(result, pd.DataFrame)
+    assert result.empty
+    assert list(result.columns) == ["open", "high", "low", "close", "volume"]
+    assert isinstance(result.index, pd.DatetimeIndex)
+    assert str(result.index.tz) == "UTC"
 
 
 @pytest.mark.asyncio
@@ -133,8 +162,8 @@ async def test_finnhub_compatibility_adapter_filters_timestamp_range(manager, ca
 
 
 @pytest.mark.asyncio
-async def test_oanda_compatibility_adapter_delegates_to_unified_contract(manager, candles):
-    manager.get_candles.return_value = candles
+async def test_oanda_compatibility_adapter_delegates_to_unified_contract(manager, oanda_candles):
+    manager.get_candles.return_value = oanda_candles
     engine = MarketDataEngine(provider_manager=manager)
 
     result = await engine.get_oanda_candles(" eur_usd ", "M15", count=2)
