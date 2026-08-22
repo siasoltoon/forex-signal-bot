@@ -7,6 +7,8 @@ on:
 
   pull_request:
 
+permissions:
+  contents: write
 
 jobs:
   test:
@@ -55,3 +57,27 @@ jobs:
         run: |
           python -m compileall .
 
+      - name: Automation runner patch probe
+        if: github.event_name == 'pull_request' && github.head_ref == 'chore/explicit-provider-contract' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/checkout@v4
+        with:
+          ref: chore/explicit-provider-contract
+          fetch-depth: 0
+
+      - name: Automation runner write probe
+        if: github.event_name == 'pull_request' && github.head_ref == 'chore/explicit-provider-contract' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p automation
+          cat > automation/runner_probe.txt <<EOF
+Automation Runner via Test workflow
+run_id=$RUN_ID
+runner_commit=$(git rev-parse HEAD)
+EOF
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add automation/runner_probe.txt
+          git commit -m 'chore: automation runner probe'
+          git push origin chore/explicit-provider-contract
