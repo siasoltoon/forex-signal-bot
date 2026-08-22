@@ -20,16 +20,44 @@ class OandaProvider(MarketDataProvider):
 
     name = "oanda"
 
+    _SYMBOL_ALIASES: Final[dict[str, str]] = {
+        "EURUSD": "EUR_USD",
+        "GBPUSD": "GBP_USD",
+        "USDJPY": "USD_JPY",
+        "USDCHF": "USD_CHF",
+        "AUDUSD": "AUD_USD",
+        "USDCAD": "USD_CAD",
+        "NZDUSD": "NZD_USD",
+        "EURGBP": "EUR_GBP",
+        "EURJPY": "EUR_JPY",
+        "GBPJPY": "GBP_JPY",
+        "AUDJPY": "AUD_JPY",
+        "NZDJPY": "NZD_JPY",
+    }
+
     _TIMEFRAME_ALIASES: Final[dict[str, str]] = {
         "M1": "M1", "M2": "M2", "M4": "M4", "M5": "M5",
         "M10": "M10", "M15": "M15", "M30": "M30",
         "H1": "H1", "H2": "H2", "H3": "H3", "H4": "H4",
         "H6": "H6", "H8": "H8", "H12": "H12",
+        "D1": "D", "W1": "W", "M1_CALENDAR": "M",
         "D": "D", "W": "W", "M": "M",
     }
 
     def __init__(self, client: OandaClient | None = None) -> None:
         self.client = client if client is not None else OandaClient()
+
+    @classmethod
+    def _normalize_symbol(cls, symbol: str) -> str:
+        """Normalize a canonical symbol into OANDA's instrument format."""
+        normalized = cls.normalize_symbol(symbol)
+        if "_" in normalized:
+            return normalized
+        if normalized in cls._SYMBOL_ALIASES:
+            return cls._SYMBOL_ALIASES[normalized]
+        if len(normalized) == 6 and normalized.isalpha():
+            return f"{normalized[:3]}_{normalized[3:]}"
+        raise ValueError(f"Unsupported OANDA symbol: {symbol}")
 
     @classmethod
     def _normalize_timeframe(cls, timeframe: str) -> str:
@@ -159,7 +187,7 @@ class OandaProvider(MarketDataProvider):
     ) -> list[Candle]:
         """Fetch and normalize OANDA candles using the common provider contract."""
         self.validate_request(symbol, timeframe, limit)
-        normalized_symbol = self.normalize_symbol(symbol)
+        normalized_symbol = self._normalize_symbol(symbol)
         normalized_timeframe = self._normalize_timeframe(timeframe)
 
         try:
