@@ -19,41 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: No-op trigger
+        run: echo "explicit provider contract runner trigger"
 
-      - name: Patch ProviderManager and add contract tests
-        env:
-          BRANCH: chore/explicit-provider-contract
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path("data/provider_manager.py")
-          text = path.read_text(encoding="utf-8")
-
-          if "async def get_candles_explicit(" not in text:
-              anchor = "    # ------------------------------------------------------------------\n    # Main public API\n    # ------------------------------------------------------------------\n\n"
-              if anchor not in text:
-                  raise SystemExit("ProviderManager main public API anchor not found")
-
-              method = '''    async def get_candles_explicit(\n        self,\n        provider_name: str,\n        symbol: str,\n        timeframe: str,\n        limit: int = 100,\n    ) -> list[Candle]:\n        """Fetch candles from one explicitly selected configured provider.\n\n        Unlike :meth:`get_candles`, this method never falls back to another\n        provider. The selected provider may still be retried according to\n        the manager retry policy.\n        """\n\n        if not isinstance(provider_name, str):\n            raise TypeError("provider_name must be a string.")\n        if not provider_name.strip():\n            raise ValueError("provider_name cannot be empty.")\n\n        if not isinstance(symbol, str):\n            raise TypeError("symbol must be a string.")\n        if not symbol.strip():\n            raise ValueError("symbol cannot be empty.")\n\n        if not isinstance(timeframe, str):\n            raise TypeError("timeframe must be a string.")\n        if not timeframe.strip():\n            raise ValueError("timeframe cannot be empty.")\n\n        if isinstance(limit, bool):\n            raise TypeError("limit must be an integer.")\n        if not isinstance(limit, int):\n            raise TypeError("limit must be an integer.")\n        if limit < 1:\n            raise ValueError("limit must be greater than zero.")\n\n        requested_name = provider_name.strip()\n        if requested_name in self._providers:\n            normalized_provider = requested_name\n        else:\n            normalized_provider = ProviderFactory.normalize_name(\n                requested_name\n            )\n\n        if normalized_provider not in self._providers:\n            raise ApplicationError(\n                "Requested provider is not configured.",\n                {\n                    "provider": normalized_provider,\n                    "configured_providers": list(self._providers),\n                },\n            )\n\n        normalized_symbol = symbol.strip().upper()\n        normalized_timeframe = timeframe.strip().upper()\n        self._last_failures = []\n\n        try:\n            provider = self._get_provider(normalized_provider)\n            candles = await self._request_with_retry(\n                normalized_provider,\n                provider,\n                symbol=normalized_symbol,\n                timeframe=normalized_timeframe,\n                limit=limit,\n            )\n            candles = self._normalize_candles(\n                candles,\n                limit=limit,\n            )\n\n            if not candles:\n                raise ApplicationError(\n                    "Explicit provider returned no usable candles.",\n                    {\n                        "provider": normalized_provider,\n                        "symbol": normalized_symbol,\n                        "timeframe": normalized_timeframe,\n                        "limit": limit,\n                    },\n                )\n\n            self._cooldowns.pop(normalized_provider, None)\n            return candles\n\n        except ApplicationError:\n            raise\n        except Exception as error:\n            raise ApplicationError(\n                "Explicit provider request failed.",\n                {\n                    "provider": normalized_provider,\n                    "symbol": normalized_symbol,\n                    "timeframe": normalized_timeframe,\n                    "limit": limit,\n                },\n            ) from error\n\n'''
-              path.write_text(text.replace(anchor, method + anchor, 1), encoding="utf-8")
-
-          test_path = Path("tests/test_provider_manager_explicit_contract.py")
-          test_path.write_text('''from __future__ import annotations\n\nfrom datetime import datetime, timezone\n\nimport pytest\n\nfrom core.errors import ApplicationError\nfrom data.models import Candle\nfrom data.provider_manager import ProviderManager\n\n\ndef candle(ts: int) -> Candle:\n    return Candle(\n        symbol="EUR_USD",\n        timestamp=datetime.fromtimestamp(ts, tz=timezone.utc),\n        open=1.1,\n        high=1.11,\n        low=1.09,\n        close=1.105,\n        volume=100.0,\n    )\n\n\nclass FakeProvider:\n    def __init__(self, responses):\n        self.responses = list(responses)\n        self.calls = []\n\n    async def get_candles(self, symbol, timeframe, limit):\n        self.calls.append((symbol, timeframe, limit))\n        response = self.responses.pop(0)\n        if isinstance(response, Exception):\n            raise response\n        return response\n\n\n@pytest.mark.asyncio\nasync def test_explicit_provider_delegates_only_to_selected_provider():\n    selected = FakeProvider([[candle(1), candle(2)]])\n    other = FakeProvider([[candle(3)]])\n    manager = ProviderManager(providers=[selected, other], retries=0)\n\n    result = await manager.get_candles_explicit(\n        provider_name=manager.providers[0],\n        symbol="eur_usd",\n        timeframe="m15",\n        limit=2,\n    )\n\n    assert result == [candle(1), candle(2)]\n    assert selected.calls == [("EUR_USD", "M15", 2)]\n    assert other.calls == []\n\n\n@pytest.mark.asyncio\nasync def test_explicit_provider_does_not_fallback_after_failure():\n    selected = FakeProvider([RuntimeError("selected failed")])\n    other = FakeProvider([[candle(2)]])\n    manager = ProviderManager(providers=[selected, other], retries=0)\n\n    with pytest.raises(ApplicationError) as exc_info:\n        await manager.get_candles_explicit(\n            provider_name=manager.providers[0],\n            symbol="EUR_USD",\n            timeframe="M15",\n            limit=1,\n        )\n\n    assert selected.calls == [("EUR_USD", "M15", 1)]\n    assert other.calls == []\n    assert exc_info.value.__cause__ is not None\n\n\n@pytest.mark.asyncio\nasync def test_explicit_provider_retries_selected_provider_only():\n    selected = FakeProvider([RuntimeError("temporary"), [candle(1)]])\n    other = FakeProvider([[candle(2)]])\n    manager = ProviderManager(providers=[selected, other], retries=1, retry_delay=0)\n\n    result = await manager.get_candles_explicit(\n        provider_name=manager.providers[0],\n        symbol="EUR_USD",\n        timeframe="M15",\n        limit=1,\n    )\n\n    assert result == [candle(1)]\n    assert len(selected.calls) == 2\n    assert other.calls == []\n\n\n@pytest.mark.asyncio\nasync def test_explicit_provider_rejects_unconfigured_provider():\n    selected = FakeProvider([[candle(1)]])\n    manager = ProviderManager(providers=[selected], retries=0)\n\n    with pytest.raises(ApplicationError, match="not configured"):\n        await manager.get_candles_explicit(\n            provider_name="oanda",\n            symbol="EUR_USD",\n            timeframe="M15",\n            limit=1,\n        )\n\n    assert selected.calls == []\n''', encoding="utf-8")
-          PY
-
-      - name: Run targeted contract tests
-        run: |
-          python -m pip install -r requirements.txt
-          pytest -q tests/test_provider_manager_explicit_contract.py tests/test_provider_manager.py
-
-      - name: Commit patch
-        env:
-          BRANCH: chore/explicit-provider-contract
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/provider_manager.py tests/test_provider_manager_explicit_contract.py
-          git diff --cached --quiet && exit 0
-          git commit -m "Add explicit provider delegation contract"
-          git push origin "$BRANCH"
+# synchronize trigger
