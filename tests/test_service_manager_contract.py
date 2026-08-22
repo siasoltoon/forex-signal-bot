@@ -1,4 +1,4 @@
-import pytest
+import asyncio
 
 from core.service import ServiceManager
 from services.base import BaseService
@@ -39,8 +39,7 @@ def test_register_uses_service_name_as_stable_key():
     assert manager.services == {"alpha": service}
 
 
-@pytest.mark.asyncio
-async def test_start_all_preserves_registration_order_and_continues_after_error(monkeypatch):
+def test_start_all_preserves_registration_order_and_continues_after_error(monkeypatch):
     manager = ServiceManager()
     events: list[str] = []
     first = RecordingService("first", events)
@@ -52,15 +51,14 @@ async def test_start_all_preserves_registration_order_and_continues_after_error(
     handled: list[Exception] = []
     monkeypatch.setattr("core.service.handle_exception", handled.append)
 
-    await manager.start_all()
+    asyncio.run(manager.start_all())
 
     assert events == ["start:first", "start:failing", "start:last"]
     assert len(handled) == 1
     assert str(handled[0]) == "start failed: failing"
 
 
-@pytest.mark.asyncio
-async def test_stop_all_uses_reverse_registration_order_and_continues_after_error(monkeypatch):
+def test_stop_all_uses_reverse_registration_order_and_continues_after_error(monkeypatch):
     manager = ServiceManager()
     events: list[str] = []
     first = RecordingService("first", events)
@@ -72,7 +70,7 @@ async def test_stop_all_uses_reverse_registration_order_and_continues_after_erro
     handled: list[Exception] = []
     monkeypatch.setattr("core.service.handle_exception", handled.append)
 
-    await manager.stop_all()
+    asyncio.run(manager.stop_all())
 
     assert events == ["stop:last", "stop:failing", "stop:first"]
     assert len(handled) == 1
@@ -116,8 +114,7 @@ def test_health_converts_service_exception_to_structured_error_and_continues(mon
     assert events == ["health:healthy", "health:failing"]
 
 
-@pytest.mark.asyncio
-async def test_lifecycle_contract_supports_async_service_methods(monkeypatch):
+def test_lifecycle_contract_supports_async_service_methods(monkeypatch):
     manager = ServiceManager()
     events: list[str] = []
 
@@ -131,9 +128,9 @@ async def test_lifecycle_contract_supports_async_service_methods(monkeypatch):
             events.append("stop:async")
 
     manager.register(AsyncService())
-    monkeypatch.setattr("core.service.handle_exception", lambda error: pytest.fail(str(error)))
+    monkeypatch.setattr("core.service.handle_exception", lambda error: (_ for _ in ()).throw(AssertionError(str(error))))
 
-    await manager.start_all()
-    await manager.stop_all()
+    asyncio.run(manager.start_all())
+    asyncio.run(manager.stop_all())
 
     assert events == ["start:async", "stop:async"]
