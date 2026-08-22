@@ -10,28 +10,24 @@ class BaseService(ABC):
 
     name: str = "base-service"
 
-
     @abstractmethod
-    def start(self) -> None:
+    async def start(self) -> None:
         """
         Start service.
         """
         pass
 
-
     @abstractmethod
-    def stop(self) -> None:
+    async def stop(self) -> None:
         """
         Stop service.
         """
         pass
 
-
     def health(self) -> dict[str, str]:
         """
         Service health information.
         """
-
         return {
             "service": self.name,
             "status": "ok",
