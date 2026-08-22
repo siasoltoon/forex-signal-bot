@@ -11,20 +11,20 @@ from data.providers.oanda_provider import OandaProvider
 
 
 PROVIDERS = [
-    (OandaProvider, "get_candles"),
-    (FinnhubProvider, "get_candles"),
-    (AlphaVantageProvider, "get_intraday"),
+    (OandaProvider, "get_candles", "oanda"),
+    (FinnhubProvider, "get_candles", "finnhub"),
+    (AlphaVantageProvider, "get_intraday", "alphavantage"),
 ]
 
 
 @pytest.mark.parametrize(
-    "provider_cls,client_method",
+    "provider_cls,client_method,provider_name",
     PROVIDERS,
     ids=["oanda", "finnhub", "alphavantage"],
 )
 @pytest.mark.asyncio
 async def test_get_candles_maps_client_exception_to_application_error(
-    provider_cls, client_method
+    provider_cls, client_method, provider_name
 ):
     client = AsyncMock()
     getattr(client, client_method).side_effect = TimeoutError("upstream timeout")
@@ -33,13 +33,18 @@ async def test_get_candles_maps_client_exception_to_application_error(
     with pytest.raises(ApplicationError) as exc_info:
         await provider.get_candles("EURUSD", "15m", limit=10)
 
-    assert "provider" in str(exc_info.value).lower()
+    error = exc_info.value
+    assert error.details["provider"] == provider_name
+    assert error.details["symbol"] == (
+        "EUR_USD" if provider_name == "oanda" else "EURUSD"
+    )
+    assert error.details["limit"] == 10
     getattr(client, client_method).assert_awaited_once()
 
 
 @pytest.mark.parametrize(
     "provider_cls,client_method",
-    PROVIDERS,
+    [(provider_cls, client_method) for provider_cls, client_method, _ in PROVIDERS],
     ids=["oanda", "finnhub", "alphavantage"],
 )
 @pytest.mark.asyncio
@@ -54,7 +59,7 @@ async def test_get_candles_rejects_non_mapping_response(provider_cls, client_met
 
 @pytest.mark.parametrize(
     "provider_cls,client_method",
-    PROVIDERS,
+    [(provider_cls, client_method) for provider_cls, client_method, _ in PROVIDERS],
     ids=["oanda", "finnhub", "alphavantage"],
 )
 @pytest.mark.asyncio
