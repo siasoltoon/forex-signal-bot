@@ -54,10 +54,14 @@ def candle(
     )
 
 
+def integration_clock() -> datetime:
+    return datetime(2026, 1, 1, 12, 5, tzinfo=timezone.utc)
+
+
 @pytest.mark.asyncio
 async def test_market_data_quality_gate_accepts_valid_candles() -> None:
     manager = FakeProviderManager([candle(minute=0), candle(minute=1)])
-    engine = MarketDataEngine(manager)
+    engine = MarketDataEngine(manager, clock=integration_clock)
 
     result = await engine.get_candles_list(
         symbol=" eur_usd ",
@@ -78,7 +82,7 @@ async def test_market_data_quality_gate_accepts_valid_candles() -> None:
 @pytest.mark.asyncio
 async def test_market_data_quality_gate_rejects_symbol_mismatch() -> None:
     manager = FakeProviderManager([candle(symbol="GBP_USD")])
-    engine = MarketDataEngine(manager)
+    engine = MarketDataEngine(manager, clock=integration_clock)
 
     with pytest.raises(ValueError, match="unexpected symbol"):
         await engine.get_candles_list(
@@ -91,7 +95,7 @@ async def test_market_data_quality_gate_rejects_symbol_mismatch() -> None:
 @pytest.mark.asyncio
 async def test_market_data_quality_gate_runs_before_dataframe_conversion() -> None:
     manager = FakeProviderManager([candle(minute=0)])
-    engine = MarketDataEngine(manager)
+    engine = MarketDataEngine(manager, clock=integration_clock)
 
     result = await engine.get_candles(
         symbol="EUR_USD",
