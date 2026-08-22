@@ -111,12 +111,11 @@ class DataManager:
             if provider_name is None
             else self.get_provider(provider_name)
         )
-        return await self._fetch_from_provider(
+        return await self._fetch_explicit_via_manager(
             provider,
             symbol=symbol,
             timeframe=timeframe,
             limit=limit,
-            allow_empty=True,
         )
 
     async def get_candles_with_fallback(
@@ -167,27 +166,47 @@ class DataManager:
         else:
             self._provider_manager.set_providers(provider_objects)
 
-    async def _fetch_from_provider(
+    async def _fetch_explicit_via_manager(
         self,
         provider: MarketDataProvider,
         *,
         symbol: str,
         timeframe: str,
         limit: int,
-        allow_empty: bool,
     ) -> list[Candle]:
+        """Fetch one explicitly selected provider through ProviderManager.
+
+        The explicit DataManager contract intentionally differs from the
+        fallback contract: an empty result is valid and provider-level
+        ApplicationError instances are preserved. ProviderManager remains
+        responsible for invoking and validating the provider result.
+        """
         if not provider.is_configured():
             raise ApplicationError(
                 f"Market data provider is not configured: {provider.name}"
             )
 
+        manager = ProviderManager(
+            providers=[provider],
+            retries=0,
+            retry_delay=0,
+            cooldown_seconds=0,
+        )
+
         try:
-            candles = await provider.get_candles(
+            return await manager.get_candles(
                 symbol=symbol,
                 timeframe=timeframe,
                 limit=limit,
             )
-        except ApplicationError:
+        except ApplicationError as error:
+            if (
+                error.message == "Provider returned no candles."
+                and error.details.get("provider") == provider.name
+                and error.details.get("symbol") == symbol
+                and error.details.get("timeframe") == timeframe
+            ):
+                return []
             raise
         except Exception as error:
             logger.exception(
@@ -205,36 +224,6 @@ class DataManager:
                     "limit": limit,
                 },
             ) from error
-
-        try:
-            normalized = self._normalize_candles(
-                candles,
-                symbol=symbol,
-                limit=limit,
-            )
-        except (TypeError, ValueError) as error:
-            raise ApplicationError(
-                "Provider returned invalid candle data.",
-                {
-                    "provider": provider.name,
-                    "symbol": symbol,
-                    "timeframe": timeframe,
-                    "limit": limit,
-                },
-            ) from error
-
-        if not normalized and not allow_empty:
-            raise ApplicationError(
-                "Provider returned no candles.",
-                {
-                    "provider": provider.name,
-                    "symbol": symbol,
-                    "timeframe": timeframe,
-                    "limit": limit,
-                },
-            )
-
-        return normalized
 
     @staticmethod
     def _normalize_provider_name(name: str) -> str:
