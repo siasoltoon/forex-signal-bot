@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - chore/explicit-provider-contract
 
   pull_request:
 
@@ -58,14 +59,20 @@ jobs:
           python -m compileall .
 
       - name: Automation runner patch probe
-        if: github.event_name == 'pull_request' && github.head_ref == 'chore/explicit-provider-contract' && github.event.pull_request.head.repo.full_name == github.repository
+        if: >-
+          (github.event_name == 'pull_request' && github.head_ref == 'chore/explicit-provider-contract' && github.event.pull_request.head.repo.full_name == github.repository)
+          ||
+          (github.event_name == 'push' && github.ref_name == 'chore/explicit-provider-contract' && !startsWith(github.event.head_commit.message, 'chore: automation runner probe'))
         uses: actions/checkout@v4
         with:
           ref: chore/explicit-provider-contract
           fetch-depth: 0
 
       - name: Automation runner write probe
-        if: github.event_name == 'pull_request' && github.head_ref == 'chore/explicit-provider-contract' && github.event.pull_request.head.repo.full_name == github.repository
+        if: >-
+          (github.event_name == 'pull_request' && github.head_ref == 'chore/explicit-provider-contract' && github.event.pull_request.head.repo.full_name == github.repository)
+          ||
+          (github.event_name == 'push' && github.ref_name == 'chore/explicit-provider-contract' && !startsWith(github.event.head_commit.message, 'chore: automation runner probe'))
         env:
           RUN_ID: ${{ github.run_id }}
         run: |
