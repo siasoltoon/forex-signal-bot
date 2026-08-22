@@ -35,13 +35,13 @@ async def test_service_forwards_normalized_request():
         symbol=" eur_usd ",
         timeframe="M15",
         limit=10,
-        provider=" OANDA ",
+        provider_name=" OANDA ",
     )
 
     assert result == ["candle"]
     assert manager.calls == [
         {
-            "provider_name": "oanda",
+            "provider_name": " OANDA ",
             "symbol": "EUR_USD",
             "timeframe": "M15",
             "limit": 10,
@@ -65,6 +65,19 @@ async def test_service_rejects_invalid_request(kwargs):
 
     with pytest.raises((TypeError, ValueError, ApplicationError)):
         await service.get_candles(**kwargs)
+
+
+@pytest.mark.asyncio
+async def test_service_rejects_invalid_provider_name():
+    service = MarketDataService(FakeManager(result=[]))
+
+    with pytest.raises((TypeError, ValueError)):
+        await service.get_candles(
+            symbol="EUR_USD",
+            timeframe="M15",
+            limit=10,
+            provider_name="   ",
+        )
 
 
 @pytest.mark.asyncio
@@ -94,11 +107,24 @@ async def test_service_wraps_unexpected_manager_error():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("result", [None, "invalid", {"candle": 1}])
-async def test_service_rejects_invalid_manager_result(result):
+async def test_service_returns_empty_list_for_none_result():
+    service = MarketDataService(FakeManager(result=None))
+
+    result = await service.get_candles(
+        symbol="EUR_USD",
+        timeframe="M15",
+        limit=10,
+    )
+
+    assert result == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("result", ["invalid", {"candle": 1}])
+async def test_service_rejects_non_list_manager_result(result):
     service = MarketDataService(FakeManager(result=result))
 
-    with pytest.raises((TypeError, ValueError, ApplicationError)):
+    with pytest.raises(ApplicationError):
         await service.get_candles(
             symbol="EUR_USD",
             timeframe="M15",
