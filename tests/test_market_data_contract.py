@@ -64,10 +64,15 @@ def manager() -> AsyncMock:
     return AsyncMock()
 
 
+@pytest.fixture
+def fresh_clock():
+    return lambda: datetime(2026, 1, 1, 0, 5, tzinfo=timezone.utc)
+
+
 @pytest.mark.asyncio
-async def test_get_candles_normalizes_request_and_returns_dataframe(manager, candles):
+async def test_get_candles_normalizes_request_and_returns_dataframe(manager, candles, fresh_clock):
     manager.get_candles.return_value = candles
-    engine = MarketDataEngine(provider_manager=manager)
+    engine = MarketDataEngine(provider_manager=manager, clock=fresh_clock)
 
     result = await engine.get_candles(" eurusd ", " 15m ", limit=2)
 
@@ -84,9 +89,9 @@ async def test_get_candles_normalizes_request_and_returns_dataframe(manager, can
 
 
 @pytest.mark.asyncio
-async def test_get_candles_list_returns_quality_gated_candles(manager, candles):
+async def test_get_candles_list_returns_quality_gated_candles(manager, candles, fresh_clock):
     manager.get_candles.return_value = candles
-    engine = MarketDataEngine(provider_manager=manager)
+    engine = MarketDataEngine(provider_manager=manager, clock=fresh_clock)
 
     result = await engine.get_candles_list("EURUSD", "15m", limit=2)
 
@@ -146,9 +151,9 @@ async def test_get_candles_returns_empty_normalized_dataframe(manager):
 
 
 @pytest.mark.asyncio
-async def test_finnhub_compatibility_adapter_filters_timestamp_range(manager, candles):
+async def test_finnhub_compatibility_adapter_filters_timestamp_range(manager, candles, fresh_clock):
     manager.get_candles.return_value = candles
-    engine = MarketDataEngine(provider_manager=manager)
+    engine = MarketDataEngine(provider_manager=manager, clock=fresh_clock)
 
     result = await engine.get_finnhub_candles(
         "EURUSD",
@@ -162,9 +167,9 @@ async def test_finnhub_compatibility_adapter_filters_timestamp_range(manager, ca
 
 
 @pytest.mark.asyncio
-async def test_oanda_compatibility_adapter_delegates_to_unified_contract(manager, oanda_candles):
+async def test_oanda_compatibility_adapter_delegates_to_unified_contract(manager, oanda_candles, fresh_clock):
     manager.get_candles.return_value = oanda_candles
-    engine = MarketDataEngine(provider_manager=manager)
+    engine = MarketDataEngine(provider_manager=manager, clock=fresh_clock)
 
     result = await engine.get_oanda_candles(" eur_usd ", "M15", count=2)
 
@@ -177,9 +182,9 @@ async def test_oanda_compatibility_adapter_delegates_to_unified_contract(manager
 
 
 @pytest.mark.asyncio
-async def test_alphavantage_compatibility_adapter_maps_interval(manager, candles):
+async def test_alphavantage_compatibility_adapter_maps_interval(manager, candles, fresh_clock):
     manager.get_candles.return_value = candles
-    engine = MarketDataEngine(provider_manager=manager)
+    engine = MarketDataEngine(provider_manager=manager, clock=fresh_clock)
 
     result = await engine.get_alphavantage_intraday("EURUSD", "15min")
 
