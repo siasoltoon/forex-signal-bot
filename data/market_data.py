@@ -21,7 +21,13 @@ logger = logging.getLogger(__name__)
 class MarketDataEngine:
     """Unified application-facing market-data facade."""
 
-    _TIMEFRAME_PATTERN = re.compile(r"^(?P<value>\d+)(?P<unit>[mhdw])$", re.IGNORECASE)
+    # Canonical project notation is unit-first (M15/H1/D1/W1).
+    # Numeric-first notation (15m/1h/1d/1w) is also accepted because
+    # providers and legacy callers may still use it.
+    _TIMEFRAME_PATTERN = re.compile(
+        r"^(?:(?P<unit_first>[mhdw])(?P<value_first>\d+)|(?P<value>\d+)(?P<unit>[mhdw]))$",
+        re.IGNORECASE,
+    )
 
     def __init__(
         self,
@@ -55,15 +61,25 @@ class MarketDataEngine:
 
     @staticmethod
     def _timeframe_to_timedelta(timeframe: str) -> timedelta:
-        """Convert canonical timeframe notation to a positive duration."""
+        """Convert canonical or legacy timeframe notation to a duration."""
         if not isinstance(timeframe, str):
             raise TypeError("timeframe must be a string.")
-        match = MarketDataEngine._TIMEFRAME_PATTERN.fullmatch(timeframe.strip())
+
+        normalized = MarketDataProvider.normalize_timeframe(timeframe)
+        match = MarketDataEngine._TIMEFRAME_PATTERN.fullmatch(normalized.strip())
         if match is None:
             raise ValueError(f"Unsupported timeframe: {timeframe!r}")
 
-        value = int(match.group("value"))
-        unit = match.group("unit").lower()
+        if match.group("unit_first") is not None:
+            unit = match.group("unit_first").lower()
+            value = int(match.group("value_first"))
+        else:
+            unit = match.group("unit").lower()
+            value = int(match.group("value"))
+
+        if value < 1:
+            raise ValueError(f"Unsupported timeframe: {timeframe!r}")
+
         multiplier = {
             "m": timedelta(minutes=1),
             "h": timedelta(hours=1),
