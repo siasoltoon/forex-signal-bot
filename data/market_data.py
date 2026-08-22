@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Optional
+import re
+from datetime import datetime, timedelta, timezone
+from typing import Any, Callable, Optional
 
 import pandas as pd
 
 from data.base import MarketDataProvider
 from data.factory import ProviderFactory
+from data.freshness import FreshnessPolicy, FreshnessReport
 from data.models import Candle
 from data.provider_manager import ProviderManager
 from data.quality import DataQuality
@@ -19,15 +21,22 @@ logger = logging.getLogger(__name__)
 class MarketDataEngine:
     """Unified application-facing market-data facade."""
 
+    _TIMEFRAME_PATTERN = re.compile(r"^(?P<value>\d+)(?P<unit>[mhdw])$", re.IGNORECASE)
+
     def __init__(
         self,
         provider_manager: ProviderManager | None = None,
+        *,
+        freshness_policy: type[FreshnessPolicy] = FreshnessPolicy,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.provider_manager = (
             provider_manager
             if provider_manager is not None
             else ProviderManager()
         )
+        self.freshness_policy = freshness_policy
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._oanda_provider: Any | None = None
 
     @staticmethod
@@ -43,6 +52,59 @@ class MarketDataEngine:
             MarketDataProvider.normalize_timeframe(timeframe),
             limit,
         )
+
+    @staticmethod
+    def _timeframe_to_timedelta(timeframe: str) -> timedelta:
+        """Convert canonical timeframe notation to a positive duration."""
+        if not isinstance(timeframe, str):
+            raise TypeError("timeframe must be a string.")
+        match = MarketDataEngine._TIMEFRAME_PATTERN.fullmatch(timeframe.strip())
+        if match is None:
+            raise ValueError(f"Unsupported timeframe: {timeframe!r}")
+
+        value = int(match.group("value"))
+        unit = match.group("unit").lower()
+        multiplier = {
+            "m": timedelta(minutes=1),
+            "h": timedelta(hours=1),
+            "d": timedelta(days=1),
+            "w": timedelta(weeks=1),
+        }[unit]
+        return multiplier * value
+
+    def _validate_freshness(
+        self,
+        candles: list[Candle],
+        *,
+        timeframe: str,
+    ) -> FreshnessReport | None:
+        """Apply the final freshness gate to the latest validated candle."""
+        if not candles:
+            return None
+
+        now = self._clock()
+        if not isinstance(now, datetime):
+            raise TypeError("clock must return a datetime.")
+
+        report = self.freshness_policy.assess(
+            candles[-1].timestamp,
+            now=now,
+            timeframe=self._timeframe_to_timedelta(timeframe),
+        )
+
+        if report.status == FreshnessPolicy.WARNING:
+            logger.warning(
+                "Market data freshness warning: timeframe=%s age=%s",
+                timeframe,
+                report.age,
+            )
+        elif not report.is_usable:
+            raise ValueError(
+                "Market data is not fresh enough: "
+                f"status={report.status}, age={report.age}, timeframe={timeframe}"
+            )
+
+        return report
 
     @staticmethod
     def _validate_candles(
@@ -140,6 +202,24 @@ class MarketDataEngine:
 
         return cls._validate_dataframe(frame)
 
+    async def _get_quality_gated_candles(
+        self,
+        symbol: str,
+        timeframe: str,
+        limit: int,
+    ) -> list[Candle]:
+        candles = await self.provider_manager.get_candles(
+            symbol=symbol,
+            timeframe=timeframe,
+            limit=limit,
+        )
+        validated = self._validate_candles(
+            candles,
+            expected_symbol=symbol,
+        )
+        self._validate_freshness(validated, timeframe=timeframe)
+        return validated
+
     async def get_candles(
         self,
         symbol: str,
@@ -151,15 +231,10 @@ class MarketDataEngine:
             self._validate_request(symbol, timeframe, limit)
         )
 
-        candles = await self.provider_manager.get_candles(
-            symbol=normalized_symbol,
-            timeframe=normalized_timeframe,
-            limit=normalized_limit,
-        )
-
-        validated = self._validate_candles(
-            candles,
-            expected_symbol=normalized_symbol,
+        validated = await self._get_quality_gated_candles(
+            normalized_symbol,
+            normalized_timeframe,
+            normalized_limit,
         )
         return self._candles_to_dataframe(validated)
 
@@ -169,20 +244,14 @@ class MarketDataEngine:
         timeframe: str,
         limit: int = 100,
     ) -> list[Candle]:
-        """Return quality-gated canonical Candle objects."""
+        """Return quality- and freshness-gated canonical Candle objects."""
         normalized_symbol, normalized_timeframe, normalized_limit = (
             self._validate_request(symbol, timeframe, limit)
         )
-
-        candles = await self.provider_manager.get_candles(
-            symbol=normalized_symbol,
-            timeframe=normalized_timeframe,
-            limit=normalized_limit,
-        )
-
-        return self._validate_candles(
-            candles,
-            expected_symbol=normalized_symbol,
+        return await self._get_quality_gated_candles(
+            normalized_symbol,
+            normalized_timeframe,
+            normalized_limit,
         )
 
     async def get_finnhub_candles(
@@ -206,15 +275,10 @@ class MarketDataEngine:
             1,
         )
 
-        candles = await self.provider_manager.get_candles(
-            symbol=normalized_symbol,
-            timeframe=normalized_timeframe,
-            limit=5000,
-        )
-
-        validated = self._validate_candles(
-            candles,
-            expected_symbol=normalized_symbol,
+        validated = await self._get_quality_gated_candles(
+            normalized_symbol,
+            normalized_timeframe,
+            5000,
         )
 
         start = datetime.fromtimestamp(from_timestamp, tz=timezone.utc)
