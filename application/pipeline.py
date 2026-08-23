@@ -40,11 +40,13 @@ class IntelligencePipeline:
         strategies: Iterable[str] | None = None,
         minimum_successful_analyzers: int = 0,
     ) -> IntelligenceRun:
+        selected_analyzers = tuple(analyzers) if analyzers is not None else None
+        selected_strategies = tuple(strategies) if strategies is not None else None
         analysis_run = self.analysis.run(
             context,
-            analyzers,
+            selected_analyzers,
             policy=AnalysisPolicy(
-                analyzers=tuple(analyzers or ()),
+                analyzers=selected_analyzers or (),
                 minimum_successful=minimum_successful_analyzers,
             ),
         )
@@ -60,7 +62,7 @@ class IntelligencePipeline:
         )
         return IntelligenceRun(
             analysis=analysis_run,
-            strategies=self.strategies.run(strategy_context, strategies),
+            strategies=self.strategies.run(strategy_context, selected_strategies),
         )
 
 
