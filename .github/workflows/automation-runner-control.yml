@@ -35,10 +35,10 @@ jobs:
           echo "Git: $(git --version)"
           mkdir -p automation
           cat > automation/runner_probe.txt <<EOF
-Automation Runner Control probe
-run_id=$RUN_ID
-head=$(git rev-parse HEAD)
-EOF
+          Automation Runner Control probe
+          run_id=$RUN_ID
+          head=$(git rev-parse HEAD)
+          EOF
           git status --short
 
       - name: Commit and push
