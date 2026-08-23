@@ -53,7 +53,7 @@ class BacktestEngine:
             if decision not in {"BUY", "SELL"}:
                 continue
             direction = 1.0 if decision == "BUY" else -1.0
-            entry = bar.close + direction * config.slippage
+            entry = bar.open + direction * config.slippage
             quantity = 1.0
             exit_price = bar.close
             gross = (exit_price - entry) * direction * quantity
