@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Mapping
@@ -27,8 +27,8 @@ class SignalSnapshot:
     confidence: float | None = None
     reason: str = ""
     version: int = 1
-    updated_at: datetime = datetime.now(timezone.utc)
-    metadata: Mapping[str, object] = None
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    metadata: Mapping[str, object] = field(default_factory=dict)
 
 
 class SignalLifecycle:
@@ -41,8 +41,14 @@ class SignalLifecycle:
         SignalStatus.CLOSED,
     }
 
-    def update(self, signal: SignalSnapshot, *, confidence: float | None = None,
-               reason: str = "", metadata: Mapping[str, object] | None = None) -> SignalSnapshot:
+    def update(
+        self,
+        signal: SignalSnapshot,
+        *,
+        confidence: float | None = None,
+        reason: str = "",
+        metadata: Mapping[str, object] | None = None,
+    ) -> SignalSnapshot:
         if signal.status in self._terminal:
             raise ValueError(f"Cannot update terminal signal: {signal.status.value}")
         return replace(
@@ -55,7 +61,13 @@ class SignalLifecycle:
             metadata=metadata if metadata is not None else signal.metadata,
         )
 
-    def transition(self, signal: SignalSnapshot, status: SignalStatus, *, reason: str = "") -> SignalSnapshot:
+    def transition(
+        self,
+        signal: SignalSnapshot,
+        status: SignalStatus,
+        *,
+        reason: str = "",
+    ) -> SignalSnapshot:
         if signal.status in self._terminal:
             raise ValueError(f"Cannot transition terminal signal: {signal.status.value}")
         return replace(
