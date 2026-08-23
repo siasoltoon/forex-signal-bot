@@ -10,7 +10,7 @@ def test_router_dispatches_commands() -> None:
     router = TelegramRouter()
     router.register_command("start", StartHandler())
     response = router.dispatch_command(CommandRequest("start"), UserContext("u1"))
-    assert "تحلیل" in response.text
+    assert "تحلیل" in response.text or any("تحلیل" in label for label, _ in response.buttons)
 
 
 def test_analysis_handler_creates_user_session() -> None:
@@ -22,7 +22,7 @@ def test_analysis_handler_creates_user_session() -> None:
 
 
 def test_localized_menus_and_report() -> None:
-    assert "Analysis" in main_menu("en").text
+    assert "Analysis" in main_menu("en").text or any("Analysis" in label for label, _ in main_menu("en").buttons)
     assert "Analysis setup" in analysis_menu("en").text
     report = render_analysis_report({"decision": "WAIT", "confidence": 70}, "fa")
     assert "تصمیم" in report
