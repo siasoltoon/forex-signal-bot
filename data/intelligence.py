@@ -37,19 +37,14 @@ class ValidatedMarketData:
 
 
 class DataIntelligence:
-    """Single validation boundary between provider output and analysis.
-
-    The component never invents or silently repairs market data. Invalid or
-    stale data is rejected so the caller can fail over or emit NO_TRADE.
-    """
+    """Single validation boundary between provider output and analysis."""
 
     def __init__(self, *, minimum_score: float = 0.80) -> None:
         if not 0.0 <= minimum_score <= 1.0:
             raise ValueError("minimum_score must be between 0 and 1")
         self.minimum_score = minimum_score
 
-    @staticmethod
-    def score_report(report: DataQualityReport) -> DataQualityScore:
+    def score_report(self, report: DataQualityReport) -> DataQualityScore:
         reasons: list[str] = []
         score = 1.0
         if report.candle_count == 0:
@@ -68,7 +63,11 @@ class DataIntelligence:
             score -= min(0.40, len(report.issues) * 0.02)
             reasons.append("validation_issues")
         score = max(0.0, min(1.0, score))
-        return DataQualityScore(score, report.valid and score >= 0.80, tuple(dict.fromkeys(reasons)))
+        return DataQualityScore(
+            score,
+            report.valid and score >= self.minimum_score,
+            tuple(dict.fromkeys(reasons)),
+        )
 
     def validate(
         self,
@@ -93,7 +92,6 @@ class DataIntelligence:
             raise ValueError("market data quality below acceptance threshold")
 
         items = tuple(candles)
-        freshness = None
         if items and timeframe_interval is not None:
             reference = now or datetime.now(timezone.utc)
             freshness = FreshnessPolicy.assess(
@@ -129,11 +127,12 @@ class DataIntelligence:
         common = left.keys() & right.keys()
         if not common:
             return False
-        for timestamp in common:
-            a, b = left[timestamp], right[timestamp]
-            if not isfinite(a) or not isfinite(b) or abs(a - b) > tolerance:
-                return False
-        return True
+        return all(
+            isfinite(left[timestamp])
+            and isfinite(right[timestamp])
+            and abs(left[timestamp] - right[timestamp]) <= tolerance
+            for timestamp in common
+        )
 
 
 __all__ = [
