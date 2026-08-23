@@ -37,11 +37,11 @@ jobs:
           set -euo pipefail
           mkdir -p automation
           cat > automation/runner_probe.txt <<EOF
-Automation Runner v2 probe
-run_id=$RUN_ID
-workflow_sha=$SHA
-runner_commit=$(git rev-parse HEAD)
-EOF
+          Automation Runner v2 probe
+          run_id=$RUN_ID
+          workflow_sha=$SHA
+          runner_commit=$(git rev-parse HEAD)
+          EOF
 
       - name: Commit and push runner change
         run: |
