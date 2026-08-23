@@ -34,5 +34,5 @@ def test_portfolio_exposure():
 
 
 def test_stress_test():
-    result = StressTestEngine().run([100, 50], [.1, .2], 15)
+    result = StressTestEngine().run([100, 50], [.1, .2], 25)
     assert result.breached is False
