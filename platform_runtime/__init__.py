@@ -10,6 +10,8 @@ from .live import LiveEvent, LiveMonitor, LiveSignal, TradeState
 from .worker import Job, JobQueue, JobStatus, WorkerHeartbeat, WorkerRegistry
 from .ai_macro import EventRiskEngine, MacroEvent, ModelOutput, ModelRegistry, NewsImpactAggregator
 from .production import AuditEvent, AuditLog, ChampionChallenger, HealthRegistry, HealthStatus
+from .pipeline import IntelligencePipeline, PipelineRequest, PipelineResult
+from .platform_orchestrator import PlatformOrchestrator, RuntimeHealth
 
 __all__ = [
     "Candle", "DataQuality", "DataValidator", "Market", "MarketRequest", "MarketSnapshot", "ProviderManager",
@@ -22,4 +24,5 @@ __all__ = [
     "Job", "JobQueue", "JobStatus", "WorkerHeartbeat", "WorkerRegistry",
     "EventRiskEngine", "MacroEvent", "ModelOutput", "ModelRegistry", "NewsImpactAggregator",
     "AuditEvent", "AuditLog", "ChampionChallenger", "HealthRegistry", "HealthStatus",
+    "IntelligencePipeline", "PipelineRequest", "PipelineResult", "PlatformOrchestrator", "RuntimeHealth",
 ]
