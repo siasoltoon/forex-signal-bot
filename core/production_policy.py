@@ -21,8 +21,13 @@ class ProductionPolicy:
     require_stop_loss: bool = True
     max_signal_age_seconds: int = 60
 
-    def can_submit(self, *, runtime_ready: bool, market_fresh: bool, risk_valid: bool,
+    def can_submit(self, runtime_ready: bool, market_fresh: bool, risk_valid: bool,
                    scenario_valid: bool, stop_loss_valid: bool, signal_age_seconds: int) -> bool:
+        """Return whether live order submission is allowed by every safety gate.
+
+        Positional and keyword arguments are both accepted for compatibility;
+        the safety checks remain fail-closed.
+        """
         if self.mode is not DecisionMode.LIVE or not self.allow_order_submission:
             return False
         if not runtime_ready:
