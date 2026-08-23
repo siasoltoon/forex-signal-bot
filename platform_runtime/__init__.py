@@ -10,6 +10,11 @@ from .live import LiveEvent, LiveMonitor, LiveSignal, TradeState
 from .worker import Job, JobQueue, JobStatus, WorkerHeartbeat, WorkerRegistry
 from .ai_macro import EventRiskEngine, MacroEvent, ModelOutput, ModelRegistry, NewsImpactAggregator
 from .production import AuditEvent, AuditLog, ChampionChallenger, HealthRegistry, HealthStatus
+from .final_runtime import DecisionTrace, FinalRuntime, RuntimeRequest, RuntimeResult
+from .ai_contracts import ModelGateway, ModelInput, ModelOutput as ContractModelOutput, ModelProvider
+from .news_macro import MacroEvent as MacroEventContract, NewsEvent, NewsProvider, MacroProvider
+from .worker_runtime import WorkerInfo, WorkerJob, WorkerRegistry as RuntimeWorkerRegistry, WorkerState
+from .telegram_reporting import ReportPreferences, TelegramReportBuilder
 
 __all__ = [
     "Candle", "DataQuality", "DataValidator", "Market", "MarketRequest", "MarketSnapshot", "ProviderManager",
@@ -22,4 +27,9 @@ __all__ = [
     "Job", "JobQueue", "JobStatus", "WorkerHeartbeat", "WorkerRegistry",
     "EventRiskEngine", "MacroEvent", "ModelOutput", "ModelRegistry", "NewsImpactAggregator",
     "AuditEvent", "AuditLog", "ChampionChallenger", "HealthRegistry", "HealthStatus",
+    "DecisionTrace", "FinalRuntime", "RuntimeRequest", "RuntimeResult",
+    "ModelGateway", "ModelInput", "ContractModelOutput", "ModelProvider",
+    "MacroEventContract", "NewsEvent", "NewsProvider", "MacroProvider",
+    "WorkerInfo", "WorkerJob", "RuntimeWorkerRegistry", "WorkerState",
+    "ReportPreferences", "TelegramReportBuilder",
 ]
