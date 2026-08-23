@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 
-from .analysis_runtime import AnalysisEvidence, MultiTimeframeEvidence
+from .analysis_runtime import MultiTimeframeEvidence
 from .intelligence import AdvancedFusion, IntelligenceDecision
 from .risk_portfolio import PositionPlan, RiskEngine, RiskLimits
 
@@ -44,22 +44,17 @@ class FinalRuntime:
         self.fusion = fusion or AdvancedFusion()
         self.risk = risk or RiskEngine(RiskLimits())
 
-    def decide(
-        self,
-        request: RuntimeRequest,
-        evidence: MultiTimeframeEvidence,
-        data_quality: float,
-        trace_id: str,
-    ) -> RuntimeResult:
+    def decide(self, request: RuntimeRequest, evidence: MultiTimeframeEvidence, data_quality: float, trace_id: str) -> RuntimeResult:
         decision = self.fusion.fuse(evidence, data_quality=data_quality)
         position = None
-        if decision.decision in {"BUY", "SELL"} and request.account_size is not None:
-            position = self.risk.plan(
-                account_size=request.account_size,
-                risk_percent=request.risk_percent,
-                entry=None,
-                stop=None,
-                direction=decision.decision,
+        entry = request.metadata.get("entry")
+        stop = request.metadata.get("stop")
+        if decision.decision in {"BUY", "SELL"} and request.account_size is not None and entry is not None and stop is not None:
+            position = self.risk.position_size(
+                account_size=float(request.account_size),
+                entry=float(entry),
+                stop=float(stop),
+                volatility_factor=float(request.metadata.get("volatility_factor", 1.0)),
             )
         trace = DecisionTrace(
             trace_id=trace_id,
