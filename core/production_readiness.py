@@ -43,8 +43,12 @@ class ProductionReadiness:
             else:
                 warnings.append("Telegram is not configured")
 
-        if not any(self.env.get(key) for key in MARKET_PROVIDER_KEYS):
-            blocking.append("at least one real market-data provider credential is required")
+        has_market_provider = any(self.env.get(key) for key in MARKET_PROVIDER_KEYS)
+        if not has_market_provider:
+            if live:
+                blocking.append("at least one real market-data provider credential is required")
+            else:
+                warnings.append("No market-data provider credential is configured")
 
         if self.env.get("AI_ENABLED", "true").lower() == "true" and not self.env.get("AI_API_KEY"):
             warnings.append("AI is enabled but AI_API_KEY is missing; AI must remain unavailable")
