@@ -1,10 +1,9 @@
-from analysis.contracts import AnalysisContext
+from analysis.contracts import AnalysisContext, AnalysisOutput
 from analysis.registry import AnalyzerRegistry
-from analysis.contracts import AnalysisOutput
 from strategy.contracts import StrategyDecision
 from strategy.registry import StrategyRegistry
-from signal.lifecycle import SignalLifecycle, SignalSnapshot, SignalStatus
-from signal.pipeline import SignalPipeline
+from signal_engine.lifecycle import SignalLifecycle, SignalSnapshot, SignalStatus
+from signal_engine.pipeline import SignalPipeline
 
 
 class StubAnalyzer:
