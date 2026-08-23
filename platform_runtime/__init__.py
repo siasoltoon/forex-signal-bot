@@ -1,6 +1,6 @@
 """Cross-cutting runtime contracts for the Trading Intelligence Platform."""
 
-from .data_runtime import Candle, DataQuality, Market, MarketRequest, MarketSnapshot, ProviderManager
+from .data_runtime import Candle, DataQuality, DataValidator, Market, MarketRequest, MarketSnapshot, ProviderManager
 from .analysis_runtime import AnalysisEvidence, AnalysisOrchestrator, AnalyzerRegistry, MultiTimeframeEvidence
 from .intelligence import AdvancedFusion, IntelligenceDecision, Scenario
 from .risk_portfolio import PortfolioRisk, PortfolioRiskEngine, PositionPlan, RiskEngine, RiskLimits
@@ -12,7 +12,7 @@ from .ai_macro import EventRiskEngine, MacroEvent, ModelOutput, ModelRegistry, N
 from .production import AuditEvent, AuditLog, ChampionChallenger, HealthRegistry, HealthStatus
 
 __all__ = [
-    "Candle", "DataQuality", "Market", "MarketRequest", "MarketSnapshot", "ProviderManager",
+    "Candle", "DataQuality", "DataValidator", "Market", "MarketRequest", "MarketSnapshot", "ProviderManager",
     "AnalysisEvidence", "AnalysisOrchestrator", "AnalyzerRegistry", "MultiTimeframeEvidence",
     "AdvancedFusion", "IntelligenceDecision", "Scenario",
     "PortfolioRisk", "PortfolioRiskEngine", "PositionPlan", "RiskEngine", "RiskLimits",
