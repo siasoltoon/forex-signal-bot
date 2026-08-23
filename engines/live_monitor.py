@@ -39,7 +39,7 @@ class LiveSignalMonitor:
         events: list[LiveSignalEvent] = []
         if invalidated and not state.invalidated:
             events.append(LiveSignalEvent(state.signal_id, "INVALIDATED", "CRITICAL", current_confidence, "scenario invalidated"))
-        elif current_confidence < state.current_confidence - 0.15:
+        if current_confidence < state.current_confidence - 0.15:
             events.append(LiveSignalEvent(state.signal_id, "CONFIDENCE_DROP", "IMPORTANT", current_confidence, "confidence dropped materially"))
         if approaching_stop:
             events.append(LiveSignalEvent(state.signal_id, "APPROACHING_STOP", "IMPORTANT", current_confidence, "price is approaching stop level"))
