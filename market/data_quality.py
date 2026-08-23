@@ -28,4 +28,4 @@ class MarketDataValidator:
         stale = bool(latest_timestamp is not None and candles and candles[-1].timestamp < latest_timestamp)
         penalty = 0.25 * gaps + 0.25 * duplicates + 0.25 * anomalies + (0.25 if stale else 0)
         score = max(0.0, 1.0 - penalty)
-        return DataQuality(score, bool(candles) and score >= 0.75, gaps, duplicates, stale, anomalies)
+        return DataQuality(score, bool(candles) and score > 0.75, gaps, duplicates, stale, anomalies)
