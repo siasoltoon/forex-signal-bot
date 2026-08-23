@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any, Mapping, Protocol
 
 
 @dataclass(frozen=True)
@@ -24,6 +24,22 @@ class AnalysisOutput:
     confidence: float | None = None
     warnings: tuple[str, ...] = ()
     error: str | None = None
+
+
+@dataclass(frozen=True)
+class AnalysisRun:
+    """Complete result envelope for an analysis orchestration pass."""
+
+    context: AnalysisContext
+    results: tuple[AnalysisOutput, ...]
+
+    @property
+    def successful(self) -> tuple[AnalysisOutput, ...]:
+        return tuple(result for result in self.results if result.success)
+
+    @property
+    def failed(self) -> tuple[AnalysisOutput, ...]:
+        return tuple(result for result in self.results if not result.success)
 
 
 class Analyzer(Protocol):
