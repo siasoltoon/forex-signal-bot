@@ -15,21 +15,23 @@ from .ai_contracts import ModelGateway, ModelInput, ModelOutput as ContractModel
 from .news_macro import MacroEvent as MacroEventContract, NewsEvent, NewsProvider, MacroProvider
 from .worker_runtime import WorkerInfo, WorkerJob, WorkerRegistry as RuntimeWorkerRegistry, WorkerState
 from .telegram_reporting import ReportPreferences, TelegramReportBuilder
+from .real_providers import AlphaVantageProvider, OandaProvider, TwelveDataProvider, configured_providers
+from .research_engine import BacktestResult, ExecutionSimulator, Fill, Order, Strategy, monte_carlo as executable_monte_carlo, run_backtest, walk_forward as executable_walk_forward
+from .live_runtime import AlertEngine, LiveEvent as RuntimeLiveEvent, LiveMonitor as RuntimeLiveMonitor, LiveSignal as RuntimeLiveSignal, TradeLifecycle, TradeState as RuntimeTradeState
+from .persistence_security import SQLiteStore, SecretManager, StoredAnalysis
+from .ml_runtime import Evaluation, ModelOutput as MLModelOutput, ProbabilisticModel, ChampionChallenger as MLChampionChallenger
+from .news_macro_runtime import EventRisk, EventRiskEngine as RuntimeEventRiskEngine, MacroEvent as RuntimeMacroEvent, MacroProvider as RuntimeMacroProvider, NewsEvent as RuntimeNewsEvent, NewsProvider as RuntimeNewsProvider
 
 __all__ = [
     "Candle", "DataQuality", "DataValidator", "Market", "MarketRequest", "MarketSnapshot", "ProviderManager",
     "AnalysisEvidence", "AnalysisOrchestrator", "AnalyzerRegistry", "MultiTimeframeEvidence",
-    "AdvancedFusion", "IntelligenceDecision", "Scenario",
-    "PortfolioRisk", "PortfolioRiskEngine", "PositionPlan", "RiskEngine", "RiskLimits",
-    "Backtester", "ExecutionCosts", "HistoricalReplay", "walk_forward",
-    "ResearchIntegrity", "MonteCarloResult", "detect_integrity", "monte_carlo",
-    "LiveEvent", "LiveMonitor", "LiveSignal", "TradeState",
-    "Job", "JobQueue", "JobStatus", "WorkerHeartbeat", "WorkerRegistry",
-    "EventRiskEngine", "MacroEvent", "ModelOutput", "ModelRegistry", "NewsImpactAggregator",
-    "AuditEvent", "AuditLog", "ChampionChallenger", "HealthRegistry", "HealthStatus",
-    "DecisionTrace", "FinalRuntime", "RuntimeRequest", "RuntimeResult",
-    "ModelGateway", "ModelInput", "ContractModelOutput", "ModelProvider",
-    "MacroEventContract", "NewsEvent", "NewsProvider", "MacroProvider",
-    "WorkerInfo", "WorkerJob", "RuntimeWorkerRegistry", "WorkerState",
-    "ReportPreferences", "TelegramReportBuilder",
+    "AdvancedFusion", "IntelligenceDecision", "Scenario", "PortfolioRisk", "PortfolioRiskEngine", "PositionPlan", "RiskEngine", "RiskLimits",
+    "Backtester", "ExecutionCosts", "HistoricalReplay", "walk_forward", "ResearchIntegrity", "MonteCarloResult", "detect_integrity", "monte_carlo",
+    "LiveEvent", "LiveMonitor", "LiveSignal", "TradeState", "Job", "JobQueue", "JobStatus", "WorkerHeartbeat", "WorkerRegistry",
+    "EventRiskEngine", "MacroEvent", "ModelOutput", "ModelRegistry", "NewsImpactAggregator", "AuditEvent", "AuditLog", "ChampionChallenger", "HealthRegistry", "HealthStatus",
+    "DecisionTrace", "FinalRuntime", "RuntimeRequest", "RuntimeResult", "ModelGateway", "ModelInput", "ContractModelOutput", "ModelProvider", "MacroEventContract", "NewsEvent", "NewsProvider", "MacroProvider",
+    "WorkerInfo", "WorkerJob", "RuntimeWorkerRegistry", "WorkerState", "ReportPreferences", "TelegramReportBuilder",
+    "AlphaVantageProvider", "OandaProvider", "TwelveDataProvider", "configured_providers", "BacktestResult", "ExecutionSimulator", "Fill", "Order", "Strategy", "run_backtest", "executable_walk_forward", "executable_monte_carlo",
+    "AlertEngine", "RuntimeLiveEvent", "RuntimeLiveMonitor", "RuntimeLiveSignal", "TradeLifecycle", "RuntimeTradeState", "SQLiteStore", "SecretManager", "StoredAnalysis",
+    "Evaluation", "MLModelOutput", "ProbabilisticModel", "MLChampionChallenger", "EventRisk", "RuntimeEventRiskEngine", "RuntimeMacroEvent", "RuntimeMacroProvider", "RuntimeNewsEvent", "RuntimeNewsProvider",
 ]
