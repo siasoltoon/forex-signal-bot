@@ -28,8 +28,10 @@ def test_supply_demand_engine():
 
 
 def test_smc_engine():
-    result = SMCEngine().analyze([1, 2, 4, 3], [0, 1, 2, 1], [0.5, 1.5, 3.5, 2.5])
+    # Final candle sweeps the prior high (5 > 3) and closes back below it.
+    result = SMCEngine().analyze([1, 2, 3, 5], [0, 1, 2, 1], [0.5, 1.5, 3.5, 4.0])
     assert result.liquidity_sweep is True
+    assert result.direction == "BEARISH"
 
 
 def test_volume_vwap_engine():
