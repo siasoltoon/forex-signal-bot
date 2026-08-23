@@ -1,25 +1,10 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
 from typing import Iterable
 
-from analysis.contracts import AnalysisContext, AnalysisOutput
+from analysis.contracts import AnalysisContext, AnalysisOutput, AnalysisRun
 from analysis.registry import AnalyzerRegistry
-
-
-@dataclass(frozen=True)
-class AnalysisRun:
-    context: AnalysisContext
-    results: tuple[AnalysisOutput, ...]
-
-    @property
-    def successful(self) -> tuple[AnalysisOutput, ...]:
-        return tuple(result for result in self.results if result.success)
-
-    @property
-    def failed(self) -> tuple[AnalysisOutput, ...]:
-        return tuple(result for result in self.results if not result.success)
 
 
 class AnalysisOrchestrator:
@@ -55,7 +40,7 @@ class AnalysisOrchestrator:
             if not isinstance(result, AnalysisOutput):
                 raise TypeError(f"Analyzer {name!r} returned an invalid result")
             return result
-        except Exception as exc:  # isolate analyzer failures from the whole run
+        except Exception as exc:
             return AnalysisOutput(
                 analyzer=str(name),
                 success=False,
