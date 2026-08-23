@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 
 
@@ -49,5 +49,4 @@ class StrategyEngine:
         return tuple(sorted(candidates, key=lambda item: item.ranking_score, reverse=True))
 
     def retire(self, key: str) -> None:
-        current = self._strategies[key]
-        self._strategies[key] = StrategyDefinition(**{**current.__dict__, "state": StrategyState.RETIRED})
+        self._strategies[key] = replace(self._strategies[key], state=StrategyState.RETIRED)
