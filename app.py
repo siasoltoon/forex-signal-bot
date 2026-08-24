@@ -1,9 +1,9 @@
-from core.application import Application
+from core.application import create_app as application_factory
 
 
-def create_app() -> Application:
+def create_app():
     """
     Application factory.
     """
 
-    return Application()
+    return application_factory()
