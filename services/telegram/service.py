@@ -11,73 +11,38 @@ logger = setup_logger()
 
 
 class TelegramService(BaseService):
-    """
-    Telegram bot service.
-    """
-
+    """Telegram bot service."""
 
     name = "telegram"
-
+    critical = True
 
     def __init__(self) -> None:
-
         self.config = TelegramConfig()
-
         self.client: TelegramClient | None = None
 
-
     async def start(self) -> None:
-        """
-        Start telegram service.
-        """
+        """Start the Telegram service and fail loudly if it cannot connect."""
+        logger.info("Starting Telegram service...")
 
         if not self.config.enabled:
+            raise RuntimeError("Telegram is disabled because TELEGRAM_BOT_TOKEN is missing.")
 
-            logger.warning(
-                "Telegram disabled: token missing."
-            )
-
-            return
-
-
-        self.client = TelegramClient(
-            self.config.token
-        )
-
-
+        self.client = TelegramClient(self.config.token)
         await self.client.start()
 
-
-        logger.info(
-            "Telegram service started."
-        )
-
+        logger.info("Telegram service started successfully.")
 
     async def stop(self) -> None:
-        """
-        Stop telegram service.
-        """
-
+        """Stop the Telegram service."""
         if self.client:
-
             await self.client.stop()
 
-
-        logger.info(
-            "Telegram service stopped."
-        )
-
+        logger.info("Telegram service stopped.")
 
     def health(self) -> dict[str, str]:
-        """
-        Telegram service health.
-        """
-
+        """Return Telegram service health information."""
         return {
             "service": self.name,
-            "status": (
-                "running"
-                if self.client
-                else "disabled"
-            ),
+            "status": "running" if self.client else "stopped",
+            "critical": str(self.critical).lower(),
         }
