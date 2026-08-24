@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from telegram import BotCommand
 from telegram.ext import Application
 
 from core.logger import setup_logger
@@ -37,6 +38,15 @@ class TelegramClient:
             me.username,
             me.id,
         )
+
+        await bot.set_my_commands([
+            BotCommand("start", "شروع ربات"),
+            BotCommand("help", "راهنما"),
+            BotCommand("signal", "دریافت سیگنال"),
+            BotCommand("status", "وضعیت سیستم"),
+            BotCommand("settings", "تنظیمات"),
+        ])
+        logger.info("Telegram commands registered.")
 
         await self.application.start()
         logger.info("Telegram application runtime started.")
