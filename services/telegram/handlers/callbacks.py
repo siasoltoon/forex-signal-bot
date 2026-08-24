@@ -1,6 +1,5 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-
 from ..state import update_menu, get_user_state
 from ..scanner import scan_market, format_scan
 from ..journal import format_journal, add_entry, JournalEntry
@@ -51,7 +50,7 @@ def _apply_setting(state, data: str) -> str:
     if data.startswith("risk_"): state.settings["risk_level"] = data.removeprefix("risk_"); return f"Risk {state.settings['risk_level']}"
     if data == "notifications_on": state.settings["notifications_enabled"] = True; return "Notifications enabled"
     if data == "notifications_off": state.settings["notifications_enabled"] = False; return "Notifications disabled"
-    state.settings[data] = True; return "Settings saved"
+    return "Settings saved"
 
 
 async def _run_signal_report(state):
@@ -68,7 +67,6 @@ async def menu_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     data = query.data or "home"; user = update.effective_user; state = get_user_state(user.id) if user else None
     language = state.language if state else "fa"
     if user: update_menu(user.id, data)
-
     if data == "home": await query.edit_message_text(t(language, "home"), reply_markup=main_menu_keyboard(language)); return
     if data in ("analysis", "signals", "settings"):
         await query.edit_message_text(t(language, data), reply_markup=submenu_keyboard(data, language)); return
@@ -91,12 +89,18 @@ async def menu_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         return
     if data == "journal":
         if not user: return
-        await query.edit_message_text(format_journal(user.id), parse_mode="HTML", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➕ Add trade" if language == "en" else "➕ ثبت نمونه معامله", callback_data="journal_add")], [InlineKeyboardButton(t(language, "back"), callback_data="home")]])); return
+        add_label = "➕ Add latest signal" if language == "en" else "➕ ثبت آخرین سیگنال معتبر"
+        await query.edit_message_text(format_journal(user.id), parse_mode="HTML", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(add_label, callback_data="journal_add")], [InlineKeyboardButton(t(language, "back"), callback_data="home")]])); return
     if data == "journal_add":
-        if user:
-            symbol = state.settings.get("market_symbol", "EURUSD") if state else "EURUSD"; add_entry(user.id, JournalEntry(symbol=symbol, side="WATCH", entry=None, stop_loss=None, take_profit=None, notes="Created from Telegram"))
-            await query.edit_message_text(format_journal(user.id), parse_mode="HTML", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➕ Add again" if language == "en" else "➕ ثبت دوباره", callback_data="journal_add")], [InlineKeyboardButton(t(language, "back"), callback_data="home")]]))
-        return
+        if not user: return
+        active = list_tracking(user.id)
+        if not active:
+            text = "ℹ️ No valid active signal is available to add to the journal." if language == "en" else "ℹ️ هیچ سیگنال معتبر و فعالی برای ثبت در ژورنال وجود ندارد."
+        else:
+            item = active[0]
+            add_entry(user.id, JournalEntry(symbol=item.symbol, side=item.signal, entry=item.entry, stop_loss=item.stop_loss, take_profit=item.take_profit_1, notes="Added from active signal", status="OPEN"))
+            text = "✅ Latest active signal added to the journal." if language == "en" else "✅ آخرین سیگنال معتبر در ژورنال ثبت شد."
+        await query.edit_message_text(text + "\n\n" + format_journal(user.id), parse_mode="HTML", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(t(language, "back"), callback_data="home")]])); return
     if data == "signal_track":
         if not user: return
         active = list_tracking(user.id)
