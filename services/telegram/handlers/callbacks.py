@@ -16,12 +16,9 @@ MENU_RESPONSES = {
 
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📊 تحلیل هوشمند", callback_data="analysis"),
-         InlineKeyboardButton("📡 سیگنال زنده", callback_data="signals")],
-        [InlineKeyboardButton("🔎 اسکن بازار", callback_data="scanner"),
-         InlineKeyboardButton("🧠 AI Coach", callback_data="coach")],
-        [InlineKeyboardButton("📒 ژورنال معاملات", callback_data="journal"),
-         InlineKeyboardButton("⚙️ تنظیمات", callback_data="settings")],
+        [InlineKeyboardButton("📊 تحلیل هوشمند", callback_data="analysis"), InlineKeyboardButton("📡 سیگنال زنده", callback_data="signals")],
+        [InlineKeyboardButton("🔎 اسکن بازار", callback_data="scanner"), InlineKeyboardButton("🧠 AI Coach", callback_data="coach")],
+        [InlineKeyboardButton("📒 ژورنال معاملات", callback_data="journal"), InlineKeyboardButton("⚙️ تنظیمات", callback_data="settings")],
     ])
 
 
@@ -51,10 +48,40 @@ def submenu_keyboard(menu: str):
     return InlineKeyboardMarkup(buttons)
 
 
-async def menu_callback_handler(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-) -> None:
+def settings_keyboard(setting: str):
+    options = {
+        "settings_language": [
+            ("🇮🇷 فارسی", "language_fa"),
+            ("🇬🇧 English", "language_en"),
+        ],
+        "settings_analysis_mode": [
+            ("Manual", "mode_manual"),
+            ("Smart", "mode_smart"),
+            ("Hybrid", "mode_hybrid"),
+        ],
+        "settings_risk": [
+            ("Low", "risk_low"),
+            ("Medium", "risk_medium"),
+            ("High", "risk_high"),
+        ],
+        "settings_market": [
+            ("Forex", "market_forex"),
+            ("Crypto", "market_crypto"),
+            ("Gold", "market_gold"),
+            ("Stocks", "market_stocks"),
+        ],
+        "settings_notifications": [
+            ("🔔 فعال", "notifications_on"),
+            ("🔕 خاموش", "notifications_off"),
+        ],
+    }
+
+    buttons = [[InlineKeyboardButton(text, callback_data=data)] for text, data in options.get(setting, [])]
+    buttons.append([InlineKeyboardButton("🔙 بازگشت", callback_data="settings")])
+    return InlineKeyboardMarkup(buttons)
+
+
+async def menu_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
 
     if not query:
@@ -80,13 +107,18 @@ async def menu_callback_handler(
         )
         return
 
+    if query.data.startswith("settings_"):
+        await query.edit_message_text(
+            "⚙️ یک گزینه را انتخاب کنید:",
+            reply_markup=settings_keyboard(query.data),
+        )
+        return
+
     if user:
         state = get_user_state(user.id)
         state.settings[query.data] = True
 
     await query.edit_message_text(
-        MENU_RESPONSES.get(query.data, "❌ بخش موردنظر پیدا نشد."),
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 بازگشت", callback_data="home")]
-        ]),
+        "✅ تنظیمات ذخیره شد.",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 تنظیمات", callback_data="settings")]]),
     )
