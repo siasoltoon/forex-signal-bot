@@ -1,7 +1,7 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from ..state import update_menu
+from ..state import update_menu, get_user_state
 
 
 MENU_RESPONSES = {
@@ -10,7 +10,7 @@ MENU_RESPONSES = {
     "scanner": "🔎 اسکن بازار\n\nبازار موردنظر را انتخاب کنید.",
     "coach": "🧠 AI Coach\n\nبخش مربی هوشمند آماده اتصال است.",
     "journal": "📒 ژورنال معاملات\n\nسوابق معاملات شما اینجا نمایش داده می‌شود.",
-    "settings": "⚙️ تنظیمات\n\nتنظیمات ربات را مدیریت کنید.",
+    "settings": "⚙️ تنظیمات\n\nیک گزینه تنظیمات را انتخاب کنید.",
 }
 
 
@@ -35,6 +35,14 @@ def submenu_keyboard(menu: str):
         buttons = [
             [InlineKeyboardButton("📡 سیگنال جدید", callback_data="signal_new")],
             [InlineKeyboardButton("📈 دنبال کردن سیگنال", callback_data="signal_track")],
+        ]
+    elif menu == "settings":
+        buttons = [
+            [InlineKeyboardButton("🌐 زبان", callback_data="settings_language")],
+            [InlineKeyboardButton("🧠 حالت تحلیل", callback_data="settings_analysis_mode")],
+            [InlineKeyboardButton("⚖️ سطح ریسک", callback_data="settings_risk")],
+            [InlineKeyboardButton("📊 بازار پیش‌فرض", callback_data="settings_market")],
+            [InlineKeyboardButton("🔔 اعلان‌ها", callback_data="settings_notifications")],
         ]
     else:
         buttons = []
@@ -65,17 +73,19 @@ async def menu_callback_handler(
         )
         return
 
-    if query.data in ("analysis", "signals"):
+    if query.data in ("analysis", "signals", "settings"):
         await query.edit_message_text(
             MENU_RESPONSES[query.data],
             reply_markup=submenu_keyboard(query.data),
         )
         return
 
-    response = MENU_RESPONSES.get(query.data, "❌ بخش موردنظر پیدا نشد.")
+    if user:
+        state = get_user_state(user.id)
+        state.settings[query.data] = True
 
     await query.edit_message_text(
-        response,
+        MENU_RESPONSES.get(query.data, "❌ بخش موردنظر پیدا نشد."),
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("🔙 بازگشت", callback_data="home")]
         ]),
