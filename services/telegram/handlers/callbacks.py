@@ -1,14 +1,16 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
+from ..state import update_menu
+
 
 MENU_RESPONSES = {
-    "analysis": "📊 تحلیل هوشمند\n\nاین بخش آماده اتصال به موتور تحلیل هوشمند است.",
-    "signals": "📡 سیگنال زنده\n\nاین بخش آماده اتصال به Decision Engine است.",
-    "scanner": "🔎 اسکن بازار\n\nاین بخش آماده اتصال به Market Scanner است.",
-    "coach": "🧠 AI Coach\n\nاین بخش آماده اتصال به مربی هوشمند معاملات است.",
-    "journal": "📒 ژورنال معاملات\n\nاین بخش آماده اتصال به Persistence Layer است.",
-    "settings": "⚙️ تنظیمات\n\nتنظیمات ربات از این بخش مدیریت می‌شود.",
+    "analysis": "📊 تحلیل هوشمند\n\nیک حالت تحلیل را انتخاب کنید.",
+    "signals": "📡 سیگنال زنده\n\nیک گزینه را انتخاب کنید.",
+    "scanner": "🔎 اسکن بازار\n\nبازار موردنظر را انتخاب کنید.",
+    "coach": "🧠 AI Coach\n\nبخش مربی هوشمند آماده اتصال است.",
+    "journal": "📒 ژورنال معاملات\n\nسوابق معاملات شما اینجا نمایش داده می‌شود.",
+    "settings": "⚙️ تنظیمات\n\nتنظیمات ربات را مدیریت کنید.",
 }
 
 
@@ -23,10 +25,22 @@ def main_menu_keyboard():
     ])
 
 
-def back_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="home")]
-    ])
+def submenu_keyboard(menu: str):
+    if menu == "analysis":
+        buttons = [
+            [InlineKeyboardButton("⚡ تحلیل سریع", callback_data="analysis_quick")],
+            [InlineKeyboardButton("📊 تحلیل کامل", callback_data="analysis_full")],
+        ]
+    elif menu == "signals":
+        buttons = [
+            [InlineKeyboardButton("📡 سیگنال جدید", callback_data="signal_new")],
+            [InlineKeyboardButton("📈 دنبال کردن سیگنال", callback_data="signal_track")],
+        ]
+    else:
+        buttons = []
+
+    buttons.append([InlineKeyboardButton("🔙 بازگشت", callback_data="home")])
+    return InlineKeyboardMarkup(buttons)
 
 
 async def menu_callback_handler(
@@ -40,6 +54,10 @@ async def menu_callback_handler(
 
     await query.answer()
 
+    user = update.effective_user
+    if user:
+        update_menu(user.id, query.data or "home")
+
     if query.data == "home":
         await query.edit_message_text(
             "🤖 Forex AI Intelligence Platform\n\nیک بخش را انتخاب کنید:",
@@ -47,12 +65,18 @@ async def menu_callback_handler(
         )
         return
 
-    response = MENU_RESPONSES.get(
-        query.data,
-        "❌ بخش موردنظر پیدا نشد."
-    )
+    if query.data in ("analysis", "signals"):
+        await query.edit_message_text(
+            MENU_RESPONSES[query.data],
+            reply_markup=submenu_keyboard(query.data),
+        )
+        return
+
+    response = MENU_RESPONSES.get(query.data, "❌ بخش موردنظر پیدا نشد.")
 
     await query.edit_message_text(
         response,
-        reply_markup=back_keyboard(),
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 بازگشت", callback_data="home")]
+        ]),
     )
