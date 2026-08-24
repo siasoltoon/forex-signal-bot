@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 
@@ -12,6 +12,17 @@ MENU_RESPONSES = {
 }
 
 
+def main_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📊 تحلیل هوشمند", callback_data="analysis"),
+         InlineKeyboardButton("📡 سیگنال زنده", callback_data="signals")],
+        [InlineKeyboardButton("🔎 اسکن بازار", callback_data="scanner"),
+         InlineKeyboardButton("🧠 AI Coach", callback_data="coach")],
+        [InlineKeyboardButton("📒 ژورنال معاملات", callback_data="journal"),
+         InlineKeyboardButton("⚙️ تنظیمات", callback_data="settings")],
+    ])
+
+
 async def menu_callback_handler(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -23,9 +34,18 @@ async def menu_callback_handler(
 
     await query.answer()
 
+    if query.data == "settings":
+        await query.edit_message_text(
+            "⚙️ تنظیمات\n\nتنظیمات ربات در این بخش قرار می‌گیرد."
+        )
+        return
+
     response = MENU_RESPONSES.get(
         query.data,
         "بخش موردنظر پیدا نشد."
     )
 
-    await query.edit_message_text(response)
+    await query.edit_message_text(
+        response,
+        reply_markup=main_menu_keyboard(),
+    )
