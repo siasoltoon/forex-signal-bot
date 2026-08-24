@@ -5,6 +5,7 @@ import os
 import signal
 import time
 
+from .executors import register_real_executors
 from .handlers import register_default_handlers
 from .runtime import WorkerRuntime
 from .server import WorkerHTTPServer
@@ -15,6 +16,7 @@ logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 def main() -> None:
     runtime = WorkerRuntime.create()
     register_default_handlers(runtime)
+    register_real_executors(runtime)
     server = WorkerHTTPServer(runtime)
     server.start()
     logging.info("PC Worker %s ready on %s:%s", runtime.worker_id, server.host, server.port)
