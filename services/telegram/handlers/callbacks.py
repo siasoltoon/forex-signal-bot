@@ -3,12 +3,12 @@ from telegram.ext import ContextTypes
 
 
 MENU_RESPONSES = {
-    "analysis": "📊 تحلیل هوشمند\n\nاین بخش به موتور تحلیل هوشمند متصل خواهد شد.",
-    "signals": "📡 سیگنال زنده\n\nاین بخش به سیستم سیگنال متصل خواهد شد.",
-    "scanner": "🔎 اسکن بازار\n\nاین بخش به Market Scanner متصل خواهد شد.",
-    "coach": "🧠 AI Coach\n\nاین بخش برای مربی هوشمند معاملات آماده می‌شود.",
-    "journal": "📒 ژورنال معاملات\n\nاین بخش به سیستم ثبت معاملات متصل خواهد شد.",
-    "settings": "⚙️ تنظیمات\n\nتنظیمات ربات در این بخش قرار می‌گیرد.",
+    "analysis": "📊 تحلیل هوشمند\n\nاین بخش آماده اتصال به موتور تحلیل هوشمند است.",
+    "signals": "📡 سیگنال زنده\n\nاین بخش آماده اتصال به Decision Engine است.",
+    "scanner": "🔎 اسکن بازار\n\nاین بخش آماده اتصال به Market Scanner است.",
+    "coach": "🧠 AI Coach\n\nاین بخش آماده اتصال به مربی هوشمند معاملات است.",
+    "journal": "📒 ژورنال معاملات\n\nاین بخش آماده اتصال به Persistence Layer است.",
+    "settings": "⚙️ تنظیمات\n\nتنظیمات ربات از این بخش مدیریت می‌شود.",
 }
 
 
@@ -23,6 +23,12 @@ def main_menu_keyboard():
     ])
 
 
+def back_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="home")]
+    ])
+
+
 async def menu_callback_handler(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -34,18 +40,19 @@ async def menu_callback_handler(
 
     await query.answer()
 
-    if query.data == "settings":
+    if query.data == "home":
         await query.edit_message_text(
-            "⚙️ تنظیمات\n\nتنظیمات ربات در این بخش قرار می‌گیرد."
+            "🤖 Forex AI Intelligence Platform\n\nیک بخش را انتخاب کنید:",
+            reply_markup=main_menu_keyboard(),
         )
         return
 
     response = MENU_RESPONSES.get(
         query.data,
-        "بخش موردنظر پیدا نشد."
+        "❌ بخش موردنظر پیدا نشد."
     )
 
     await query.edit_message_text(
         response,
-        reply_markup=main_menu_keyboard(),
+        reply_markup=back_keyboard(),
     )
