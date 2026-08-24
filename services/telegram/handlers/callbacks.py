@@ -8,6 +8,7 @@ from ..tracker import list_tracking, stop_tracking
 from ..i18n import t
 from analysis.full_engine import FullAnalysisEngine
 from data.market_data import MarketDataEngine
+from core.errors import ApplicationError
 
 
 def main_menu_keyboard(language: str = "fa"):
@@ -60,6 +61,15 @@ async def _run_signal_report(state):
     return await __import__("asyncio").to_thread(FullAnalysisEngine().analyze, candles)
 
 
+def _scanner_failure_text(language: str, error: Exception) -> str:
+    if isinstance(error, ApplicationError) and error.details.get("required_environment"):
+        required = ", ".join(error.details["required_environment"])
+        if language == "en":
+            return "❌ No market-data provider is configured on the server.\n\nAdd at least one real provider key to Railway environment variables:\n" + required
+        return "❌ هیچ Provider داده بازار روی سرور فعال نیست.\n\nحداقل یکی از کلیدهای واقعی Provider را در Environment Variables ریل‌وی قرار بده:\n" + required
+    return t(language, "scan_failed")
+
+
 async def menu_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     if not query: return
@@ -76,8 +86,8 @@ async def menu_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         try:
             timeframe = state.settings.get("timeframe", "M15"); results = await scan_market(timeframe=timeframe)
             await query.edit_message_text(format_scan(results, timeframe, language), parse_mode="HTML", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(t(language, "retry"), callback_data="scanner")], [InlineKeyboardButton(t(language, "back"), callback_data="home")]]))
-        except Exception:
-            await query.edit_message_text(t(language, "scan_failed"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(t(language, "retry"), callback_data="scanner")], [InlineKeyboardButton(t(language, "back"), callback_data="home")]]))
+        except Exception as error:
+            await query.edit_message_text(_scanner_failure_text(language, error), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(t(language, "retry"), callback_data="scanner")], [InlineKeyboardButton(t(language, "back"), callback_data="home")]]))
         return
     if data == "coach":
         if not state: return
