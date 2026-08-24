@@ -1,14 +1,129 @@
+from __future__ import annotations
+
+import asyncio
+
 from telegram import Update
 from telegram.ext import ContextTypes
+
+from analysis.full_engine import FullAnalysisEngine
+from data.market_data import MarketDataEngine
+from services.telegram.state import get_user_state
+
+
+DEFAULT_SYMBOL = "EURUSD"
+DEFAULT_TIMEFRAME = "M15"
+DEFAULT_CANDLE_LIMIT = 300
+
+
+_SIGNAL_LABELS = {
+    "STRONG_BUY": "🟢 خرید قوی",
+    "BUY": "🟢 خرید",
+    "WAIT": "🟡 انتظار",
+    "NO_TRADE": "⛔ عدم معامله",
+    "SELL": "🔴 فروش",
+    "STRONG_SELL": "🔴 فروش قوی",
+}
+
+
+def _setting_value(state, key: str, default: str) -> str:
+    value = state.settings.get(key, default)
+    return value if isinstance(value, str) and value.strip() else default
+
+
+def _format_price(value: float | None) -> str:
+    if value is None:
+        return "—"
+    return f"{value:.5f}"
+
+
+def _format_number(value: float | None) -> str:
+    if value is None:
+        return "—"
+    return f"{value:.2f}"
+
+
+def _format_signal(report, symbol: str, timeframe: str) -> str:
+    signal = str(report.signal).upper()
+    label = _SIGNAL_LABELS.get(signal, signal)
+    confidence = max(0.0, min(1.0, float(report.confidence))) * 100.0
+
+    lines = [
+        "📡 <b>سیگنال جدید</b>",
+        "",
+        f"💱 بازار: <b>{symbol}</b>",
+        f"⏱ تایم‌فریم: <b>{timeframe}</b>",
+        f"📌 تصمیم: <b>{label}</b>",
+        f"📊 امتیاز: <b>{_format_number(report.score)}</b>",
+        f"🎯 اطمینان: <b>{confidence:.1f}%</b>",
+        f"🏆 کیفیت معامله: <b>{report.trade_grade}</b> ({report.trade_quality}/100)",
+        f"📈 روند: <b>{report.trend}</b>",
+        f"🧭 ساختار: <b>{report.structure}</b>",
+        "",
+        "💰 <b>سطوح مدیریت معامله</b>",
+        f"ورود: <b>{_format_price(report.entry_price)}</b>",
+        f"حد ضرر: <b>{_format_price(report.stop_loss)}</b>",
+        f"هدف ۱: <b>{_format_price(report.take_profit_1)}</b>",
+        f"هدف ۲: <b>{_format_price(report.take_profit_2)}</b>",
+        f"هدف ۳: <b>{_format_price(report.take_profit_3)}</b>",
+        f"⚖️ نسبت ریسک/بازده: <b>{_format_number(report.risk_reward)}</b>",
+    ]
+
+    if report.warnings:
+        lines.extend(["", "⚠️ <b>هشدارها</b>"])
+        lines.extend(f"• {warning}" for warning in report.warnings[:5])
+
+    if report.reasons:
+        lines.extend(["", "🧠 <b>دلایل اصلی</b>"])
+        lines.extend(f"• {reason}" for reason in report.reasons[:6])
+
+    if signal in {"WAIT", "NO_TRADE"}:
+        lines.extend([
+            "",
+            "ℹ️ شرایط فعلی برای ورود مطمئن کافی نیست؛ مدیریت سرمایه را رعایت کنید.",
+        ])
+
+    return "\n".join(lines)
 
 
 async def signal_handler(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE
+    context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    if update.message:
-        await update.message.reply_text(
-            "📡 بخش سیگنال\n\n"
-            "موتور تصمیم‌گیری در حال اتصال است.\n"
-            "در نسخه بعدی به Intelligence Pipeline متصل می‌شود."
+    """Fetch live candles, run the complete analysis pipeline and report the decision."""
+    if not update.message:
+        return
+
+    user_id = update.effective_user.id if update.effective_user else None
+    state = get_user_state(user_id) if user_id is not None else None
+
+    symbol = _setting_value(state, "market_symbol", DEFAULT_SYMBOL) if state else DEFAULT_SYMBOL
+    timeframe = _setting_value(state, "timeframe", DEFAULT_TIMEFRAME) if state else DEFAULT_TIMEFRAME
+
+    status_message = await update.message.reply_text(
+        f"⏳ در حال دریافت داده زنده {symbol}/{timeframe} و اجرای تحلیل کامل..."
+    )
+
+    try:
+        market_data = MarketDataEngine()
+        candles = await market_data.get_candles_list(
+            symbol=symbol,
+            timeframe=timeframe,
+            limit=DEFAULT_CANDLE_LIMIT,
+        )
+
+        if not candles:
+            raise RuntimeError("داده بازار خالی است.")
+
+        engine = FullAnalysisEngine()
+        report = await asyncio.to_thread(engine.analyze, candles)
+        text = _format_signal(report, symbol, timeframe)
+
+        await status_message.edit_text(text, parse_mode="HTML")
+
+    except Exception as exc:
+        await status_message.edit_text(
+            "❌ <b>تولید سیگنال انجام نشد.</b>\n\n"
+            f"علت فنی: <code>{type(exc).__name__}</code>\n"
+            "داده بازار یا یکی از مراحل تحلیل در دسترس نبود؛ بنابراین سیگنال ساختگی صادر نشد.",
+            parse_mode="HTML",
         )
