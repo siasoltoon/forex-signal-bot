@@ -10,16 +10,9 @@ logger = setup_logger()
 
 
 class TelegramClient:
-    """
-    Telegram bot client.
-    """
+    """Telegram bot client with explicit startup diagnostics."""
 
-
-    def __init__(
-        self,
-        token: str,
-    ) -> None:
-
+    def __init__(self, token: str) -> None:
         self.application = (
             Application
             .builder()
@@ -27,45 +20,45 @@ class TelegramClient:
             .build()
         )
 
-        register_routes(
-            self.application
-        )
-
+        register_routes(self.application)
+        logger.info("Telegram client configured and routes registered.")
 
     async def start(self) -> None:
-        """
-        Start telegram bot.
-        """
+        """Initialize the bot, validate the token and start polling."""
+        logger.info("Starting Telegram client...")
 
         await self.application.initialize()
+        logger.info("Telegram application initialized.")
+
+        bot = self.application.bot
+        me = await bot.get_me()
+        logger.info(
+            "Telegram authentication successful: @%s (id=%s).",
+            me.username,
+            me.id,
+        )
 
         await self.application.start()
+        logger.info("Telegram application runtime started.")
 
-        if self.application.updater:
+        updater = self.application.updater
+        if updater is None:
+            raise RuntimeError("Telegram updater is unavailable; polling cannot start.")
 
-            await self.application.updater.start_polling()
-
-
-        logger.info(
-            "Telegram bot is online."
-        )
-
+        await updater.start_polling()
+        logger.info("Telegram polling started successfully.")
+        logger.info("Telegram bot is online.")
 
     async def stop(self) -> None:
-        """
-        Stop telegram bot.
-        """
+        """Stop polling and shut down the Telegram application."""
+        logger.info("Stopping Telegram client...")
 
-        if self.application.updater:
+        updater = self.application.updater
+        if updater is not None and updater.running:
+            await updater.stop()
 
-            await self.application.updater.stop()
-
-
-        await self.application.stop()
+        if self.application.running:
+            await self.application.stop()
 
         await self.application.shutdown()
-
-
-        logger.info(
-            "Telegram bot stopped."
-        )
+        logger.info("Telegram bot stopped.")
