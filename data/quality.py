@@ -22,12 +22,7 @@ class DataQualityReport:
 
 
 class DataQuality:
-    """Validate and assess normalized market candles.
-
-    This layer does not repair market data silently. It reports structural
-    problems so callers can decide whether to reject, log, or request data
-    from another provider.
-    """
+    """Validate and assess normalized market candles."""
 
     @staticmethod
     def _validate_interval(interval: timedelta) -> None:
@@ -35,6 +30,12 @@ class DataQuality:
             raise TypeError("interval must be a timedelta.")
         if interval <= timedelta(0):
             raise ValueError("interval must be greater than zero.")
+
+    @staticmethod
+    def _normalize_symbol(symbol: str) -> str:
+        """Normalize provider symbol formats into the internal contract."""
+        value = symbol.strip().upper().replace("_", "")
+        return value
 
     @classmethod
     def inspect(
@@ -45,7 +46,6 @@ class DataQuality:
         expected_interval: timedelta | None = None,
         gap_tolerance: int = 1,
     ) -> DataQualityReport:
-        """Inspect candles without mutating them."""
         if candles is None:
             raise TypeError("candles cannot be None.")
         if not isinstance(candles, Sequence):
@@ -64,7 +64,7 @@ class DataQuality:
         suspicious_gaps = 0
         seen: set[tuple[str, object]] = set()
 
-        normalized_symbol = expected_symbol.strip().upper() if expected_symbol else None
+        normalized_symbol = cls._normalize_symbol(expected_symbol) if expected_symbol else None
         previous: Candle | None = None
 
         for index, candle in enumerate(candles):
@@ -72,7 +72,7 @@ class DataQuality:
                 issues.append(f"item {index} is not a Candle")
                 continue
 
-            symbol = candle.symbol.strip().upper()
+            symbol = cls._normalize_symbol(candle.symbol)
             if normalized_symbol is not None and symbol != normalized_symbol:
                 issues.append(f"item {index} has unexpected symbol {candle.symbol!r}")
 
@@ -109,21 +109,8 @@ class DataQuality:
         )
 
     @classmethod
-    def validate(
-        cls,
-        candles: Sequence[Candle],
-        *,
-        expected_symbol: str | None = None,
-        expected_interval: timedelta | None = None,
-        gap_tolerance: int = 1,
-    ) -> list[Candle]:
-        """Validate candles and return a new list, raising on quality errors."""
-        report = cls.inspect(
-            candles,
-            expected_symbol=expected_symbol,
-            expected_interval=expected_interval,
-            gap_tolerance=gap_tolerance,
-        )
+    def validate(cls, candles: Sequence[Candle], **kwargs) -> list[Candle]:
+        report = cls.inspect(candles, **kwargs)
         if not report.valid:
             raise ValueError("Invalid market data: " + "; ".join(report.issues))
         return list(candles)
