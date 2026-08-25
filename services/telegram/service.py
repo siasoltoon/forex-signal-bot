@@ -5,6 +5,7 @@ from services.base import BaseService
 from core.logger import setup_logger
 from services.telegram.client import TelegramClient
 from services.telegram.config import TelegramConfig
+from services.analysis.service import AnalysisService
 
 
 logger = setup_logger()
@@ -16,9 +17,10 @@ class TelegramService(BaseService):
     name = "telegram"
     critical = True
 
-    def __init__(self) -> None:
+    def __init__(self, analysis_service: AnalysisService | None = None) -> None:
         self.config = TelegramConfig()
         self.client: TelegramClient | None = None
+        self.analysis_service = analysis_service
 
     async def start(self) -> None:
         """Start the Telegram service and fail loudly if it cannot connect."""
@@ -27,7 +29,10 @@ class TelegramService(BaseService):
         if not self.config.enabled:
             raise RuntimeError("Telegram is disabled because TELEGRAM_BOT_TOKEN is missing.")
 
-        self.client = TelegramClient(self.config.token)
+        self.client = TelegramClient(
+            self.config.token,
+            analysis_service=self.analysis_service,
+        )
         await self.client.start()
 
         logger.info("Telegram service started successfully.")
