@@ -43,7 +43,7 @@ def _format_signal(report, symbol: str, timeframe: str) -> str:
 
 
 async def signal_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Run signal generation through AnalysisService pipeline."""
+    """Run signal generation through AnalysisService and Live Signal Engine."""
     source_message = update.message or (update.callback_query.message if update.callback_query else None)
     if source_message is None:
         return
@@ -81,6 +81,14 @@ async def signal_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
 
         report = adapt_analysis_run(run, symbol=symbol, timeframe=timeframe)
+
+        signal_engine = context.bot_data.get("signal_engine")
+        if signal_engine and str(report.signal).upper() not in {"WAIT", "NO_TRADE"}:
+            signal_engine.create_signal(
+                report,
+                symbol=symbol,
+                timeframe=timeframe,
+            )
 
         if user_id is not None and str(report.signal).upper() not in {"WAIT", "NO_TRADE"}:
             track_report(user_id, symbol, timeframe, report)
