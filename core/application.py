@@ -9,6 +9,7 @@ from health import health_check
 
 from services.telegram.service import TelegramService
 from services.analysis.service import AnalysisService
+from services.signals.service import SignalEngineService
 
 
 logger = setup_logger()
@@ -40,9 +41,14 @@ def create_app() -> Application:
     app = Application()
 
     analysis_service = AnalysisService()
+    signal_engine_service = SignalEngineService()
 
     app.services.register(
         analysis_service
+    )
+
+    app.services.register(
+        signal_engine_service
     )
 
     app.services.register(
