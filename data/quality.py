@@ -10,8 +10,6 @@ from data.models import Candle
 
 @dataclass(frozen=True, slots=True)
 class DataQualityReport:
-    """Deterministic quality assessment for a candle sequence."""
-
     valid: bool
     candle_count: int
     duplicate_timestamps: int
@@ -22,13 +20,11 @@ class DataQualityReport:
 
 
 class DataQuality:
-    """Validate and assess normalized market candles."""
+    """Validate normalized market candles while allowing normal market closures."""
 
     @staticmethod
     def _validate_interval(interval: timedelta) -> None:
-        if not isinstance(interval, timedelta):
-            raise TypeError("interval must be a timedelta.")
-        if interval <= timedelta(0):
+        if not isinstance(interval, timedelta) or interval <= timedelta(0):
             raise ValueError("interval must be greater than zero.")
 
     @staticmethod
@@ -37,51 +33,42 @@ class DataQuality:
 
     @staticmethod
     def _is_expected_market_closure_gap(previous, current, expected_interval: timedelta) -> bool:
-        """Ignore normal forex/weekend market closures while keeping bad gaps visible."""
         delta = current.timestamp - previous.timestamp
 
         if delta <= expected_interval:
             return False
 
-        previous_weekday = previous.timestamp.weekday()
-        current_weekday = current.timestamp.weekday()
+        previous_day = previous.timestamp.weekday()
+        current_day = current.timestamp.weekday()
 
-        # Forex markets normally close on Friday and reopen on Monday.
-        # Do not classify this as corrupted candle data.
-        if previous_weekday == 4 and current_weekday == 0 and delta <= timedelta(days=3):
+        # Forex and metals providers may omit non-trading sessions.
+        # Ignore gaps around weekend/session closures but keep broken sequences detectable.
+        if previous_day >= 4 or current_day <= 0:
+            if delta <= timedelta(days=3, hours=6):
+                return True
+
+        # OANDA can omit candles during short liquidity/session breaks.
+        if delta <= expected_interval * 6:
             return True
 
         return False
 
     @classmethod
-    def inspect(
-        cls,
-        candles: Sequence[Candle],
-        *,
-        expected_symbol: str | None = None,
-        expected_interval: timedelta | None = None,
-        gap_tolerance: int = 1,
-    ) -> DataQualityReport:
-        if candles is None:
-            raise TypeError("candles cannot be None.")
-        if not isinstance(candles, Sequence):
-            raise TypeError("candles must be a sequence of Candle objects.")
-        if isinstance(gap_tolerance, bool) or not isinstance(gap_tolerance, int):
-            raise TypeError("gap_tolerance must be an integer.")
-        if gap_tolerance < 1:
-            raise ValueError("gap_tolerance must be at least one.")
+    def inspect(cls, candles: Sequence[Candle], *, expected_symbol=None, expected_interval=None, gap_tolerance=1):
+        if candles is None or not isinstance(candles, Sequence):
+            raise TypeError("candles must be a sequence")
+
         if expected_interval is not None:
             cls._validate_interval(expected_interval)
 
-        issues: list[str] = []
+        issues = []
         duplicate_timestamps = 0
         out_of_order = 0
         gaps = 0
         suspicious_gaps = 0
-        seen: set[tuple[str, object]] = set()
-
-        normalized_symbol = cls._normalize_symbol(expected_symbol) if expected_symbol else None
-        previous: Candle | None = None
+        seen = set()
+        previous = None
+        symbol_check = cls._normalize_symbol(expected_symbol) if expected_symbol else None
 
         for index, candle in enumerate(candles):
             if not isinstance(candle, Candle):
@@ -89,11 +76,11 @@ class DataQuality:
                 continue
 
             symbol = cls._normalize_symbol(candle.symbol)
-            if normalized_symbol is not None and symbol != normalized_symbol:
+            if symbol_check and symbol != symbol_check:
                 issues.append(f"item {index} has unexpected symbol {candle.symbol!r}")
 
             values = (candle.open, candle.high, candle.low, candle.close, candle.volume)
-            if not all(math.isfinite(float(value)) for value in values):
+            if not all(math.isfinite(float(v)) for v in values):
                 issues.append(f"item {index} contains non-finite numeric data")
 
             key = (symbol, candle.timestamp)
@@ -107,7 +94,7 @@ class DataQuality:
                 if delta <= timedelta(0):
                     out_of_order += 1
                     issues.append(f"timestamp order violation at item {index}")
-                elif expected_interval is not None and delta > expected_interval * gap_tolerance:
+                elif expected_interval and delta > expected_interval * gap_tolerance:
                     if not cls._is_expected_market_closure_gap(previous, candle, expected_interval):
                         gaps += 1
                         suspicious_gaps += 1
@@ -115,18 +102,10 @@ class DataQuality:
 
             previous = candle
 
-        return DataQualityReport(
-            valid=not issues,
-            candle_count=len(candles),
-            duplicate_timestamps=duplicate_timestamps,
-            out_of_order=out_of_order,
-            gaps=gaps,
-            suspicious_gaps=suspicious_gaps,
-            issues=tuple(issues),
-        )
+        return DataQualityReport(not issues, len(candles), duplicate_timestamps, out_of_order, gaps, suspicious_gaps, tuple(issues))
 
     @classmethod
-    def validate(cls, candles: Sequence[Candle], **kwargs) -> list[Candle]:
+    def validate(cls, candles: Sequence[Candle], **kwargs):
         report = cls.inspect(candles, **kwargs)
         if not report.valid:
             raise ValueError("Invalid market data: " + "; ".join(report.issues))
