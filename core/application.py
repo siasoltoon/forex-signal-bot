@@ -7,6 +7,7 @@ from core.service import ServiceManager
 
 from health import health_check
 
+from data.market_data import MarketDataEngine
 from services.telegram.service import TelegramService
 from services.analysis.service import AnalysisService
 from services.signals.service import SignalEngineService
@@ -40,8 +41,11 @@ class Application:
 def create_app() -> Application:
     app = Application()
 
+    market_data_engine = MarketDataEngine()
     analysis_service = AnalysisService()
-    signal_engine_service = SignalEngineService()
+    signal_engine_service = SignalEngineService(
+        market_data=market_data_engine
+    )
 
     app.services.register(
         analysis_service
