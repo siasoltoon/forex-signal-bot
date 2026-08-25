@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from services.base import BaseService
 
@@ -9,6 +10,9 @@ from data.market_data import MarketDataEngine
 from .manager import SignalManager
 from .monitor import SignalMonitor
 from .pipeline import SignalPipeline
+
+
+logger = logging.getLogger(__name__)
 
 
 class SignalEngineService(BaseService):
@@ -51,22 +55,39 @@ class SignalEngineService(BaseService):
         while self._running:
             try:
                 await self._check_active_signals()
-            except Exception:
-                pass
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.exception(
+                    "Signal monitor cycle failed: %s",
+                    exc,
+                )
 
             await asyncio.sleep(30)
 
     async def _check_active_signals(self) -> None:
         for signal in self.manager.active_signals():
-            price_data = await self.market_data.get_latest_oanda_price(
-                signal.symbol
-            )
+            try:
+                price_data = await self.market_data.get_latest_oanda_price(
+                    signal.symbol
+                )
 
-            if not price_data:
-                continue
+                if not price_data:
+                    logger.warning(
+                        "No price data available for signal %s",
+                        signal.symbol,
+                    )
+                    continue
 
-            price = float(price_data.get("close") or price_data.get("bid"))
-            await self.monitor.check(signal.symbol, price)
+                price = float(price_data.get("close") or price_data.get("bid"))
+                await self.monitor.check(signal.symbol, price)
+
+            except Exception as exc:
+                logger.exception(
+                    "Signal check failed for %s: %s",
+                    signal.symbol,
+                    exc,
+                )
 
     def create_signal(self, analysis_result, *, symbol: str, timeframe: str):
         """Create and register a live trading signal from analysis output."""
