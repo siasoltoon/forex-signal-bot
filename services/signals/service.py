@@ -4,6 +4,8 @@ import asyncio
 
 from services.base import BaseService
 
+from data.market_data import MarketDataEngine
+
 from .manager import SignalManager
 from .monitor import SignalMonitor
 from .pipeline import SignalPipeline
@@ -15,10 +17,11 @@ class SignalEngineService(BaseService):
     name = "signal-engine"
     critical = False
 
-    def __init__(self) -> None:
+    def __init__(self, market_data: MarketDataEngine | None = None) -> None:
         self.manager = SignalManager()
         self.pipeline = SignalPipeline(self.manager)
         self.monitor = SignalMonitor(self.manager)
+        self.market_data = market_data or MarketDataEngine()
         self._monitor_task: asyncio.Task | None = None
         self._running = False
 
@@ -28,9 +31,7 @@ class SignalEngineService(BaseService):
             return
 
         self._running = True
-        self._monitor_task = asyncio.create_task(
-            self._monitor_loop()
-        )
+        self._monitor_task = asyncio.create_task(self._monitor_loop())
 
     async def stop(self) -> None:
         """Stop live signal monitoring lifecycle safely."""
@@ -49,11 +50,23 @@ class SignalEngineService(BaseService):
     async def _monitor_loop(self) -> None:
         while self._running:
             try:
-                self.monitor.check()
+                await self._check_active_signals()
             except Exception:
                 pass
 
             await asyncio.sleep(30)
+
+    async def _check_active_signals(self) -> None:
+        for signal in self.manager.active_signals():
+            price_data = await self.market_data.get_latest_oanda_price(
+                signal.symbol
+            )
+
+            if not price_data:
+                continue
+
+            price = float(price_data.get("close") or price_data.get("bid"))
+            await self.monitor.check(signal.symbol, price)
 
     def create_signal(self, analysis_result, *, symbol: str, timeframe: str):
         """Create and register a live trading signal from analysis output."""
