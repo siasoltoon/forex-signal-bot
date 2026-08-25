@@ -52,7 +52,10 @@ def create_app() -> Application:
     )
 
     app.services.register(
-        TelegramService(analysis_service=analysis_service)
+        TelegramService(
+            analysis_service=analysis_service,
+            signal_engine=signal_engine_service,
+        )
     )
 
     return app
