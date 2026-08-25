@@ -16,15 +16,10 @@ logger = setup_logger()
 
 @dataclass
 class Application:
-    """
-    Main application core.
-    """
+    """Main application core."""
 
     name: str = "forex-signal-bot"
-
-    services: ServiceManager = field(
-        default_factory=ServiceManager
-    )
+    services: ServiceManager = field(default_factory=ServiceManager)
 
     def health(self) -> dict:
         return {
@@ -33,39 +28,25 @@ class Application:
         }
 
     async def start(self) -> None:
-        """
-        Start application.
-        """
         await self.services.start_all()
-
-        logger.info(
-            f"{self.name} started successfully."
-        )
+        logger.info(f"{self.name} started successfully.")
 
     async def stop(self) -> None:
-        """
-        Stop application.
-        """
         await self.services.stop_all()
-
-        logger.info(
-            f"{self.name} stopped successfully."
-        )
+        logger.info(f"{self.name} stopped successfully.")
 
 
 def create_app() -> Application:
-    """
-    Application factory.
-    """
-
     app = Application()
 
+    analysis_service = AnalysisService()
+
     app.services.register(
-        AnalysisService()
+        analysis_service
     )
 
     app.services.register(
-        TelegramService()
+        TelegramService(analysis_service=analysis_service)
     )
 
     return app
