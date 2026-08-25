@@ -18,6 +18,7 @@ DEFAULT_SCAN_SYMBOLS = ("EURUSD", "GBPUSD", "USDJPY", "XAUUSD")
 DEFAULT_TIMEFRAME = "M15"
 DEFAULT_LIMIT = 300
 
+
 @dataclass(frozen=True)
 class ScanResult:
     symbol: str
@@ -32,6 +33,7 @@ class ScanResult:
     last_candle_time: str | None = None
     error: str | None = None
 
+
 @dataclass(frozen=True)
 class ScanReadiness:
     configured_providers: tuple[str, ...]
@@ -39,8 +41,8 @@ class ScanReadiness:
 
 
 def _provider_readiness() -> ScanReadiness:
-    configured=[]
-    unavailable=[]
+    configured = []
+    unavailable = []
     for provider_name in ProviderFactory.available():
         try:
             (configured if ProviderFactory.configured(provider_name) else unavailable).append(provider_name)
@@ -50,45 +52,81 @@ def _provider_readiness() -> ScanReadiness:
 
 
 def _build_provider_manager() -> ProviderManager:
-    readiness=_provider_readiness()
+    readiness = _provider_readiness()
     if not readiness.configured_providers:
         raise ApplicationError("No market-data provider is configured.", {})
     return ProviderManager(providers=readiness.configured_providers)
 
 
 async def scan_market(symbols=DEFAULT_SCAN_SYMBOLS, timeframe=DEFAULT_TIMEFRAME, limit=DEFAULT_LIMIT):
-    provider_manager=_build_provider_manager()
-    engine=MarketDataEngine(provider_manager=provider_manager)
-    analyzer=FullAnalysisEngine()
+    provider_manager = _build_provider_manager()
+    engine = MarketDataEngine(provider_manager=provider_manager)
+    analyzer = FullAnalysisEngine()
 
     async def scan_one(symbol):
         try:
-            candles=await engine.get_candles_list(symbol,timeframe,limit)
+            candles = await engine.get_candles_list(symbol, timeframe, limit)
             if not candles:
                 raise RuntimeError("empty market data")
-            status=evaluate_market_status(candles,timeframe)
+
+            status = evaluate_market_status(candles, timeframe)
             if status.status != "OPEN":
-                return ScanResult(symbol,"NO_TRADE",0.0,0.0,None,"UNKNOWN","unknown",None,status.status,getattr(status,"last_candle_time",None))
-            report=await asyncio.to_thread(analyzer.analyze,candles)
-            return ScanResult(symbol,str(report.signal).upper(),float(report.confidence),float(report.score),report.trade_quality,report.trade_grade,report.trend,report.risk_reward,status.status,getattr(status,"last_candle_time",None))
+                return ScanResult(
+                    symbol, "NO_TRADE", 0.0, 0.0, None, "UNKNOWN", "unknown", None,
+                    status.status, getattr(status, "last_candle_time", None)
+                )
+
+            report = await asyncio.to_thread(analyzer.analyze, candles)
+            return ScanResult(
+                symbol,
+                str(report.signal).upper(),
+                float(report.confidence),
+                float(report.score),
+                report.trade_quality,
+                report.trade_grade,
+                report.trend,
+                report.risk_reward,
+                status.status,
+                getattr(status, "last_candle_time", None),
+            )
         except Exception as exc:
-            logger.exception("Market scan failed for %s/%s",symbol,timeframe)
-            return ScanResult(symbol,"NO_TRADE",0.0,0.0,None,"UNKNOWN","unknown",None,error=type(exc).__name__)
+            logger.exception("Market scan failed for %s/%s", symbol, timeframe)
+            return ScanResult(symbol, "NO_TRADE", 0.0, 0.0, None, "UNKNOWN", "unknown", None, error=type(exc).__name__)
 
-    return sorted(await asyncio.gather(*(scan_one(s) for s in symbols)),key=lambda x:(x.error is None,x.confidence,x.score),reverse=True)
+    return sorted(await asyncio.gather(*(scan_one(s) for s in symbols)), key=lambda x: (x.error is None, x.confidence, x.score), reverse=True)
 
 
-def format_scan(results,timeframe,language="fa"):
-    lines=["🔎 <b>اسکن بازار — {}</b>".format(timeframe),""]
+def _status_text(status: str) -> str:
+    mapping = {
+        "CLOSED": "بسته",
+        "STALE_DATA": "داده قدیمی",
+        "NO_DATA": "بدون داده",
+        "HOLIDAY": "تعطیل",
+        "UNKNOWN": "نامشخص",
+    }
+    return mapping.get(status, status)
+
+
+def format_scan(results, timeframe, language="fa"):
+    lines = ["🔎 <b>اسکن بازار — {}</b>".format(timeframe), ""]
+
     for item in results:
-        if item.market_status != "OPEN":
-            lines.append(f"• <b>{item.symbol}</b> → ⚠️ وضعیت بازار: {item.market_status}")
+        if item.error:
+            lines.append(f"• <b>{item.symbol}</b> → ⛔ خطا در دریافت داده")
             continue
-        confidence=max(0,min(1,item.confidence))*100
-        quality="—" if item.trade_quality is None else f"{item.trade_quality:.0f}"
-        rr="—" if item.risk_reward is None else f"{item.risk_reward:.2f}"
+
+        if item.market_status != "OPEN":
+            extra = f" | آخرین کندل: {item.last_candle_time}" if item.last_candle_time else ""
+            lines.append(f"• <b>{item.symbol}</b> → ⚠️ بازار {_status_text(item.market_status)}{extra}")
+            continue
+
+        confidence = max(0, min(1, item.confidence)) * 100
+        quality = "—" if item.trade_quality is None else f"{item.trade_quality:.0f}"
+        rr = "—" if item.risk_reward is None else f"{item.risk_reward:.2f}"
         lines.append(f"• <b>{item.symbol}</b> → {item.signal} | اطمینان {confidence:.0f}% | کیفیت {quality} | RR {rr} | روند {item.trend}")
-    lines.extend(["",t(language,"scan_note")])
+
+    lines.extend(["", t(language, "scan_note")])
     return "\n".join(lines)
 
-__all__=["ScanResult","ScanReadiness","scan_market","format_scan","DEFAULT_SCAN_SYMBOLS"]
+
+__all__ = ["ScanResult", "ScanReadiness", "scan_market", "format_scan", "DEFAULT_SCAN_SYMBOLS"]
