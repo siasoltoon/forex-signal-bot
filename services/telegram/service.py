@@ -6,6 +6,7 @@ from core.logger import setup_logger
 from services.telegram.client import TelegramClient
 from services.telegram.config import TelegramConfig
 from services.analysis.service import AnalysisService
+from services.signals.service import SignalEngineService
 
 
 logger = setup_logger()
@@ -17,10 +18,15 @@ class TelegramService(BaseService):
     name = "telegram"
     critical = True
 
-    def __init__(self, analysis_service: AnalysisService | None = None) -> None:
+    def __init__(
+        self,
+        analysis_service: AnalysisService | None = None,
+        signal_engine: SignalEngineService | None = None,
+    ) -> None:
         self.config = TelegramConfig()
         self.client: TelegramClient | None = None
         self.analysis_service = analysis_service
+        self.signal_engine = signal_engine
 
     async def start(self) -> None:
         """Start the Telegram service and fail loudly if it cannot connect."""
@@ -32,6 +38,7 @@ class TelegramService(BaseService):
         self.client = TelegramClient(
             self.config.token,
             analysis_service=self.analysis_service,
+            signal_engine=self.signal_engine,
         )
         await self.client.start()
 
