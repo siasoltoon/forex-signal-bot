@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from core.errors import handle_exception
 from services.base import BaseService
 
 from data.market_data import MarketDataEngine
@@ -58,10 +59,7 @@ class SignalEngineService(BaseService):
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                logger.exception(
-                    "Signal monitor cycle failed: %s",
-                    exc,
-                )
+                handle_exception(exc)
 
             await asyncio.sleep(30)
 
@@ -83,11 +81,7 @@ class SignalEngineService(BaseService):
                 await self.monitor.check(signal.symbol, price)
 
             except Exception as exc:
-                logger.exception(
-                    "Signal check failed for %s: %s",
-                    signal.symbol,
-                    exc,
-                )
+                handle_exception(exc)
 
     def create_signal(self, analysis_result, *, symbol: str, timeframe: str):
         """Create and register a live trading signal from analysis output."""
