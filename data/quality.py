@@ -33,9 +33,25 @@ class DataQuality:
 
     @staticmethod
     def _normalize_symbol(symbol: str) -> str:
-        """Normalize provider symbol formats into the internal contract."""
-        value = symbol.strip().upper().replace("_", "")
-        return value
+        return symbol.strip().upper().replace("_", "")
+
+    @staticmethod
+    def _is_expected_market_closure_gap(previous, current, expected_interval: timedelta) -> bool:
+        """Ignore normal forex/weekend market closures while keeping bad gaps visible."""
+        delta = current.timestamp - previous.timestamp
+
+        if delta <= expected_interval:
+            return False
+
+        previous_weekday = previous.timestamp.weekday()
+        current_weekday = current.timestamp.weekday()
+
+        # Forex markets normally close on Friday and reopen on Monday.
+        # Do not classify this as corrupted candle data.
+        if previous_weekday == 4 and current_weekday == 0 and delta <= timedelta(days=3):
+            return True
+
+        return False
 
     @classmethod
     def inspect(
@@ -92,9 +108,10 @@ class DataQuality:
                     out_of_order += 1
                     issues.append(f"timestamp order violation at item {index}")
                 elif expected_interval is not None and delta > expected_interval * gap_tolerance:
-                    gaps += 1
-                    suspicious_gaps += 1
-                    issues.append(f"gap detected before item {index}: {delta}")
+                    if not cls._is_expected_market_closure_gap(previous, candle, expected_interval):
+                        gaps += 1
+                        suspicious_gaps += 1
+                        issues.append(f"gap detected before item {index}: {delta}")
 
             previous = candle
 
