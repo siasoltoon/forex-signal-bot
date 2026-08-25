@@ -13,13 +13,16 @@ logger = setup_logger()
 class TelegramClient:
     """Telegram bot client with explicit startup diagnostics."""
 
-    def __init__(self, token: str) -> None:
+    def __init__(self, token: str, analysis_service=None) -> None:
         self.application = (
             Application
             .builder()
             .token(token)
             .build()
         )
+
+        if analysis_service is not None:
+            self.application.bot_data["analysis_service"] = analysis_service
 
         register_routes(self.application)
         logger.info("Telegram client configured and routes registered.")
