@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from services.base import BaseService
 
 from .manager import SignalManager
@@ -17,14 +19,41 @@ class SignalEngineService(BaseService):
         self.manager = SignalManager()
         self.pipeline = SignalPipeline(self.manager)
         self.monitor = SignalMonitor(self.manager)
+        self._monitor_task: asyncio.Task | None = None
+        self._running = False
 
-    def start(self) -> None:
-        """Initialize signal engine resources."""
-        return None
+    async def start(self) -> None:
+        """Start live signal monitoring lifecycle."""
+        if self._running:
+            return
 
-    def stop(self) -> None:
-        """Release signal engine resources."""
-        return None
+        self._running = True
+        self._monitor_task = asyncio.create_task(
+            self._monitor_loop()
+        )
+
+    async def stop(self) -> None:
+        """Stop live signal monitoring lifecycle safely."""
+        self._running = False
+
+        if self._monitor_task:
+            self._monitor_task.cancel()
+
+            try:
+                await self._monitor_task
+            except asyncio.CancelledError:
+                pass
+
+            self._monitor_task = None
+
+    async def _monitor_loop(self) -> None:
+        while self._running:
+            try:
+                self.monitor.check()
+            except Exception:
+                pass
+
+            await asyncio.sleep(30)
 
     def create_signal(self, analysis_result, *, symbol: str, timeframe: str):
         """Create and register a live trading signal from analysis output."""
