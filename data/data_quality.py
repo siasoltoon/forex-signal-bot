@@ -11,7 +11,12 @@ class DataQualityReport:
     candle_count: int
 
 
-def validate_candles(candles: list, minimum_count: int = 10) -> DataQualityReport:
+
+def validate_candles(
+    candles: list,
+    minimum_count: int = 10,
+    expected_interval_seconds: int | None = None,
+) -> DataQualityReport:
     issues: list[str] = []
 
     if not candles:
@@ -28,8 +33,14 @@ def validate_candles(candles: list, minimum_count: int = 10) -> DataQualityRepor
             issues.append("MISSING_TIMESTAMP")
             continue
 
-        if previous_time is not None and timestamp <= previous_time:
-            issues.append("INVALID_ORDER")
+        if previous_time is not None:
+            if timestamp <= previous_time:
+                issues.append("INVALID_ORDER")
+
+            if expected_interval_seconds is not None:
+                gap = (timestamp - previous_time).total_seconds()
+                if gap > expected_interval_seconds:
+                    issues.append("MISSING_CANDLE_GAP")
 
         previous_time = timestamp
 
@@ -42,12 +53,20 @@ def validate_candles(candles: list, minimum_count: int = 10) -> DataQualityRepor
 
         if any(value is None for value in values):
             issues.append("INVALID_OHLC")
+            continue
 
-        elif not (
+        if not all(isinstance(value, (int, float)) for value in values):
+            issues.append("INVALID_OHLC_TYPE")
+            continue
+
+        if not (
             values[2] <= values[0] <= values[1]
             and values[2] <= values[3] <= values[1]
         ):
             issues.append("INVALID_OHLC")
+
+        if any(value < 0 for value in values):
+            issues.append("NEGATIVE_PRICE")
 
     unique_issues = tuple(dict.fromkeys(issues))
 
