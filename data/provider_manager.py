@@ -1,10 +1,19 @@
+# =========================
+# PART 1/4
+# data/provider_manager.py
+# FINAL v3
+# =========================
 
 from __future__ import annotations
 
 import asyncio
+import math
 import time
+
 from dataclasses import dataclass
+from enum import Enum
 from typing import Iterable
+
 
 from core.errors import ApplicationError
 from core.logger import setup_logger
@@ -17,284 +26,509 @@ from data.models import Candle
 logger = setup_logger()
 
 
-@dataclass(frozen=True, slots=True)
+# ==========================================================
+# Provider Exceptions
+# ==========================================================
+
+
+class ProviderError(Exception):
+    """Base provider exception."""
+
+
+class ProviderRateLimitError(ProviderError):
+    """Provider rate limit exceeded."""
+
+
+class ProviderTemporaryUnavailableError(ProviderError):
+    """Provider temporarily unavailable."""
+
+
+class ProviderAuthenticationError(ProviderError):
+    """Provider authentication failed."""
+
+
+class ProviderInvalidDataError(ProviderError):
+    """Provider returned invalid data."""
+
+
+class ProviderTimeoutError(ProviderError):
+    """Provider timeout."""
+
+
+# ==========================================================
+# Circuit Breaker
+# ==========================================================
+
+
+class CircuitState(str, Enum):
+
+    CLOSED = "closed"
+
+    OPEN = "open"
+
+    HALF_OPEN = "half_open"
+
+
+# ==========================================================
+# Data Models
+# ==========================================================
+
+
+@dataclass(
+    frozen=True,
+    slots=True,
+)
 class ProviderFailure:
-    """
-    Information about a failed provider attempt.
-    """
 
     provider: str
+
     attempt: int
+
     error_type: str
+
     message: str
 
 
-ProviderReference = str | MarketDataProvider
+
+@dataclass(slots=True)
+class ProviderHealth:
+
+    provider: str
+
+    status: str = "healthy"
+
+    circuit_state: str = CircuitState.CLOSED.value
+
+    total_requests: int = 0
+
+    total_attempts: int = 0
+
+    successful_requests: int = 0
+
+    failed_requests: int = 0
+
+    consecutive_failures: int = 0
+
+    last_success_time: float | None = None
+
+    last_failure_time: float | None = None
+
+    last_error_type: str | None = None
+
+    last_error_message: str | None = None
+
+    cooldown_until: float | None = None
+
+    opened_at: float | None = None
+
+    half_open_test: bool = False
+
+
+
+@dataclass(slots=True)
+class ProviderMetrics:
+
+    provider: str
+
+    total_requests: int = 0
+
+    total_attempts: int = 0
+
+    successful_requests: int = 0
+
+    failed_requests: int = 0
+
+    total_latency: float = 0.0
+
+
+    @property
+    def average_latency(
+        self,
+    ) -> float:
+
+        if self.total_attempts == 0:
+
+            return 0.0
+
+        return (
+            self.total_latency
+            /
+            self.total_attempts
+        )
+
+
+    @property
+    def success_rate(
+        self,
+    ) -> float:
+
+        if self.total_requests == 0:
+
+            return 0.0
+
+        return (
+            self.successful_requests
+            /
+            self.total_requests
+        )
+
+
+
+ProviderReference = (
+    str
+    |
+    MarketDataProvider
+)
+
+
+
+# ==========================================================
+# Provider Manager
+# ==========================================================
 
 
 class ProviderManager:
+
     """
-    High-level manager for market-data providers.
+    Production market data provider manager.
 
-    Responsibilities
-    ----------------
-    - Manage provider priority.
-    - Create providers through ProviderFactory.
-    - Accept both provider names and already-created provider instances.
-    - Retry temporary provider failures.
-    - Fall back to the next provider.
-    - Keep provider failures isolated.
-    - Validate the final candle result.
-    - Normalize candle ordering and duplicates.
-    - Preserve the common MarketDataProvider contract.
+    Features:
 
-    Provider names:
-        "oanda"
-        "finnhub"
-        "alphavantage"
-
-    Provider instances:
-        Any object implementing the required get_candles() contract.
-
-    Example
-    -------
-        manager = ProviderManager(
-            providers=[
-                "oanda",
-                "finnhub",
-                "alphavantage",
-            ]
-        )
-
-        candles = await manager.get_candles(
-            symbol="EUR_USD",
-            timeframe="M15",
-            limit=100,
-        )
+    - Provider priority
+    - Factory integration
+    - Dependency injection
+    - Retry system
+    - Timeout handling
+    - Failover
+    - Circuit breaker
+    - Health monitoring
+    - Metrics
+    - Validation
+    - Normalization
     """
 
-    DEFAULT_PROVIDERS: tuple[str, ...] = (
+
+
+    DEFAULT_PROVIDERS = (
         "oanda",
         "finnhub",
         "alphavantage",
     )
 
+
     DEFAULT_RETRIES = 2
+
+    DEFAULT_TIMEOUT = 15.0
+
+    DEFAULT_COOLDOWN = 30.0
+
+    DEFAULT_FAILURE_THRESHOLD = 3
+
+
 
     def __init__(
         self,
         providers: Iterable[ProviderReference] | None = None,
         *,
         retries: int = DEFAULT_RETRIES,
+        timeout: float = DEFAULT_TIMEOUT,
         retry_delay: float = 0.5,
-        cooldown_seconds: float = 30.0,
+        cooldown_seconds: float = DEFAULT_COOLDOWN,
+        failure_threshold: int = DEFAULT_FAILURE_THRESHOLD,
     ) -> None:
-        """
-        Initialize ProviderManager.
 
-        providers may contain either:
-
-            - provider names
-            - provider instances
-
-        Example:
-
-            ProviderManager(
-                providers=[
-                    "oanda",
-                    "finnhub",
-                ]
-            )
-
-        or:
-
-            ProviderManager(
-                providers=[
-                    fake_provider,
-                    another_provider,
-                ]
-            )
-        """
 
         if providers is None:
+
             providers = self.DEFAULT_PROVIDERS
 
-        raw_providers = list(providers)
+
+
+        raw_providers = list(
+            providers
+        )
+
 
         if not raw_providers:
+
             raise ValueError(
-                "At least one provider must be configured."
+                "At least one provider required."
             )
 
-        self.retries = self._validate_non_negative_int(
+
+
+        self.retries = self._validate_int(
             retries,
             "retries",
         )
 
-        self.retry_delay = self._validate_non_negative_number(
+
+        self.timeout = self._validate_number(
+            timeout,
+            "timeout",
+        )
+
+
+        self.retry_delay = self._validate_number(
             retry_delay,
             "retry_delay",
         )
 
-        self.cooldown_seconds = self._validate_non_negative_number(
+
+        self.cooldown_seconds = self._validate_number(
             cooldown_seconds,
             "cooldown_seconds",
         )
 
+
+        self.failure_threshold = self._validate_int(
+            failure_threshold,
+            "failure_threshold",
+        )
+
+
+
+        self._state_lock = asyncio.Lock()
+
+
+
         self._providers: tuple[str, ...]
+
+
         self._provider_instances: dict[
             str,
             MarketDataProvider,
         ] = {}
+
 
         self._provider_objects: dict[
             str,
             MarketDataProvider,
         ] = {}
 
-        provider_names: list[str] = []
 
-        for index, provider_reference in enumerate(
+
+        names: list[str] = []
+
+
+
+        for index, reference in enumerate(
             raw_providers
         ):
+
+
             if isinstance(
-                provider_reference,
+                reference,
                 str,
             ):
-                provider_name = (
-                    ProviderFactory.normalize_name(
-                        provider_reference
-                    )
+
+                name = ProviderFactory.normalize_name(
+                    reference
                 )
 
+
                 if not ProviderFactory.is_supported(
-                    provider_name
+                    name
                 ):
+
                     raise ApplicationError(
-                        "Unknown market data provider.",
+                        "Unknown provider.",
                         {
-                            "provider": provider_name,
+                            "provider": name,
                             "available": ProviderFactory.available(),
                         },
                     )
 
-                canonical_name = provider_name
-                provider_instance = None
+
+                instance = None
+
+
 
             else:
-                provider_instance = provider_reference
+
+                instance = reference
+
 
                 if not self._is_provider_instance(
-                    provider_instance
+                    instance
                 ):
+
                     raise TypeError(
-                        "Each provider must be either "
-                        "a provider name string or an object "
-                        "implementing get_candles(). "
-                        f"Invalid provider at index {index}: "
-                        f"{type(provider_reference).__name__}"
+                        "Invalid provider instance."
                     )
 
-                canonical_name = (
-                    self._provider_instance_name(
-                        provider_instance,
-                        index,
-                    )
+
+                name = self._provider_instance_name(
+                    instance,
+                    index,
                 )
 
-            if canonical_name in provider_names:
+
+
+            if name in names:
+
                 continue
 
-            provider_names.append(
-                canonical_name
+
+            names.append(
+                name
             )
 
-            if provider_instance is not None:
+
+            if instance is not None:
+
                 self._provider_objects[
-                    canonical_name
-                ] = provider_instance
+                    name
+                ] = instance
+
+
 
         self._providers = tuple(
-            provider_names
+            names
         )
 
+
+
         if not self._providers:
+
             raise ValueError(
-                "At least one provider must be configured."
+                "No providers configured."
             )
+
+
+
+        self._provider_health = {
+            name: ProviderHealth(
+                provider=name
+            )
+            for name in self._providers
+        }
+
+
+        self._metrics = {
+            name: ProviderMetrics(
+                provider=name
+            )
+            for name in self._providers
+        }
+
 
         self._cooldowns: dict[
             str,
             float,
         ] = {}
 
+
         self._last_failures: list[
             ProviderFailure
         ] = []
 
-    # ------------------------------------------------------------------
-    # Validation helpers
-    # ------------------------------------------------------------------
+# =========================
+# PART 2/4
+# data/provider_manager.py
+# FINAL v3
+# =========================
+
+
+    # ======================================================
+    # Validation Helpers
+    # ======================================================
+
 
     @staticmethod
-    def _validate_non_negative_int(
+    def _validate_int(
         value: int,
         name: str,
     ) -> int:
-        if isinstance(value, bool):
+
+
+        if isinstance(
+            value,
+            bool,
+        ):
+
             raise TypeError(
-                f"{name} must be an integer."
+                f"{name} must be integer."
             )
 
-        if not isinstance(value, int):
+
+        if not isinstance(
+            value,
+            int,
+        ):
+
             raise TypeError(
-                f"{name} must be an integer."
+                f"{name} must be integer."
             )
+
 
         if value < 0:
+
             raise ValueError(
                 f"{name} cannot be negative."
             )
 
+
         return value
 
+
+
+
+
     @staticmethod
-    def _validate_non_negative_number(
+    def _validate_number(
         value: float,
         name: str,
     ) -> float:
-        if isinstance(value, bool):
+
+
+        if isinstance(
+            value,
+            bool,
+        ):
+
             raise TypeError(
-                f"{name} must be a number."
+                f"{name} must be number."
             )
+
 
         if not isinstance(
             value,
             (int, float),
         ):
+
             raise TypeError(
-                f"{name} must be a number."
+                f"{name} must be number."
             )
 
+
+        if not math.isfinite(
+            value
+        ):
+
+            raise ValueError(
+                f"{name} must be finite."
+            )
+
+
         if value < 0:
+
             raise ValueError(
                 f"{name} cannot be negative."
             )
 
+
         return float(value)
+
+
+
+
 
     @staticmethod
     def _is_provider_instance(
         provider: object,
     ) -> bool:
-        """
-        Determine whether an object provides the common
-        get_candles() interface.
 
-        We intentionally use duck typing here so lightweight
-        test doubles such as FakeProvider can be used without
-        inheriting from MarketDataProvider.
-        """
 
         return callable(
             getattr(
@@ -304,339 +538,719 @@ class ProviderManager:
             )
         )
 
+
+
+
+
     @staticmethod
     def _provider_instance_name(
         provider: MarketDataProvider,
         index: int,
     ) -> str:
-        """
-        Resolve a stable canonical name for an injected provider
-        instance.
 
-        Real MarketDataProvider implementations expose `name`.
 
-        Lightweight test doubles may not, so we generate a stable
-        local name such as:
-
-            fakeprovider_0
-            fakeprovider_1
-        """
-
-        name = getattr(
-            provider,
+        for attribute in (
             "name",
-            None,
-        )
-
-        if isinstance(
-            name,
-            str,
-        ) and name.strip():
-            try:
-                return ProviderFactory.normalize_name(
-                    name
-                )
-            except (
-                TypeError,
-                ValueError,
-            ):
-                pass
-
-        provider_name = getattr(
-            provider,
             "provider_name",
-            None,
-        )
+        ):
 
-        if isinstance(
-            provider_name,
-            str,
-        ) and provider_name.strip():
-            try:
+            value = getattr(
+                provider,
+                attribute,
+                None,
+            )
+
+
+            if isinstance(
+                value,
+                str,
+            ) and value.strip():
+
                 return ProviderFactory.normalize_name(
-                    provider_name
+                    value
                 )
-            except (
-                TypeError,
-                ValueError,
-            ):
-                pass
+
+
 
         class_name = (
             provider.__class__.__name__
-        )
-
-        normalized = (
-            class_name.strip()
             .lower()
         )
 
-        if normalized.endswith(
+
+        if class_name.endswith(
             "provider"
         ):
-            normalized = normalized[
-                :-len("provider")
-            ]
 
-        if not normalized:
-            normalized = "provider"
-
-        return f"{normalized}_{index}"
-
-    # ------------------------------------------------------------------
-    # Provider configuration
-    # ------------------------------------------------------------------
-
-    @property
-    def providers(self) -> tuple[str, ...]:
-        """
-        Return providers in priority order.
-        """
-        return self._providers
-
-    def set_providers(
-        self,
-        providers: Iterable[ProviderReference],
-    ) -> None:
-        """
-        Replace provider priority order.
-
-        Existing provider instances are retained where possible.
-        """
-
-        raw_providers = list(providers)
-
-        if not raw_providers:
-            raise ValueError(
-                "At least one provider must be configured."
+            class_name = (
+                class_name[:-8]
             )
 
-        normalized: list[str] = []
-        new_objects: dict[
-            str,
-            MarketDataProvider,
-        ] = {}
 
-        for index, provider_reference in enumerate(
-            raw_providers
-        ):
-            if isinstance(
-                provider_reference,
-                str,
-            ):
-                provider_name = (
-                    ProviderFactory.normalize_name(
-                        provider_reference
-                    )
-                )
-
-                if not ProviderFactory.is_supported(
-                    provider_name
-                ):
-                    raise ApplicationError(
-                        "Unknown market data provider.",
-                        {
-                            "provider": provider_name,
-                            "available": ProviderFactory.available(),
-                        },
-                    )
-
-                canonical_name = provider_name
-
-            else:
-                if not self._is_provider_instance(
-                    provider_reference
-                ):
-                    raise TypeError(
-                        "Each provider must be either "
-                        "a provider name string or an object "
-                        "implementing get_candles()."
-                    )
-
-                canonical_name = (
-                    self._provider_instance_name(
-                        provider_reference,
-                        index,
-                    )
-                )
-
-                new_objects[
-                    canonical_name
-                ] = provider_reference
-
-            if canonical_name not in normalized:
-                normalized.append(
-                    canonical_name
-                )
-
-        self._providers = tuple(
-            normalized
+        return (
+            f"{class_name or 'provider'}_{index}"
         )
 
-        self._provider_objects.update(
-            new_objects
-        )
 
-    # ------------------------------------------------------------------
-    # Provider instances
-    # ------------------------------------------------------------------
+
+
+
+    # ======================================================
+    # Provider Access
+    # ======================================================
+
+
+    @property
+    def providers(
+        self,
+    ) -> tuple[str, ...]:
+
+        return self._providers
+
+
+
+
 
     def _get_provider(
         self,
         provider_name: str,
     ) -> MarketDataProvider:
-        """
-        Lazily create and cache a provider instance.
 
-        Injected provider instances always take precedence over
-        ProviderFactory creation.
-        """
 
-        normalized_name = (
-            ProviderFactory.normalize_name(
+        injected = (
+            self._provider_objects
+            .get(
                 provider_name
             )
-            if provider_name in self._provider_objects
-            else provider_name
         )
 
-        injected = self._provider_objects.get(
-            normalized_name
-        )
 
         if injected is not None:
+
             return injected
 
-        provider = self._provider_instances.get(
-            normalized_name
+
+
+        cached = (
+            self._provider_instances
+            .get(
+                provider_name
+            )
         )
 
-        if provider is None:
+
+        if cached is not None:
+
+            return cached
+
+
+
+        try:
+
             provider = ProviderFactory.create(
-                normalized_name
+                provider_name
             )
 
-            self._provider_instances[
-                normalized_name
-            ] = provider
+
+        except Exception as error:
+
+            raise ProviderTemporaryUnavailableError(
+                f"Cannot create provider {provider_name}: {error}"
+            )
+
+
+
+        self._provider_instances[
+            provider_name
+        ] = provider
+
+
 
         return provider
 
-    def clear_instances(self) -> None:
-        """
-        Clear cached factory-created provider instances.
 
-        Injected provider instances are intentionally retained.
-        """
+
+
+
+    def clear_instances(
+        self,
+    ) -> None:
+
         self._provider_instances.clear()
 
-    # ------------------------------------------------------------------
-    # Cooldown
-    # ------------------------------------------------------------------
+
+
+
+
+    # ======================================================
+    # State Access
+    # ======================================================
+
+
+    def _get_health(
+        self,
+        provider_name: str,
+    ) -> ProviderHealth:
+
+
+        if provider_name not in self._provider_health:
+
+            self._provider_health[
+                provider_name
+            ] = ProviderHealth(
+                provider=provider_name
+            )
+
+
+        return self._provider_health[
+            provider_name
+        ]
+
+
+
+
+
+    def _get_metrics(
+        self,
+        provider_name: str,
+    ) -> ProviderMetrics:
+
+
+        if provider_name not in self._metrics:
+
+            self._metrics[
+                provider_name
+            ] = ProviderMetrics(
+                provider=provider_name
+            )
+
+
+        return self._metrics[
+            provider_name
+        ]
+
+
+
+
+
+    def _register_attempt(
+        self,
+        provider_name: str,
+    ) -> float:
+
+
+        health = self._get_health(
+            provider_name
+        )
+
+
+        metrics = self._get_metrics(
+            provider_name
+        )
+
+
+        health.total_attempts += 1
+
+        metrics.total_attempts += 1
+
+
+        return time.monotonic()
+
+
+
+
+
+    def _mark_success(
+        self,
+        provider_name: str,
+        latency: float,
+    ) -> None:
+
+
+        health = self._get_health(
+            provider_name
+        )
+
+
+        metrics = self._get_metrics(
+            provider_name
+        )
+
+
+        health.total_requests += 1
+
+        health.successful_requests += 1
+
+        health.consecutive_failures = 0
+
+        health.status = "healthy"
+
+        health.circuit_state = (
+            CircuitState.CLOSED.value
+        )
+
+        health.half_open_test = False
+
+        health.last_success_time = (
+            time.time()
+        )
+
+        health.last_error_type = None
+
+        health.last_error_message = None
+
+
+        metrics.total_requests += 1
+
+        metrics.successful_requests += 1
+
+        metrics.total_latency += latency
+
+
+        self.clear_cooldown(
+            provider_name
+        )
+
+
+
+
+
+    def _mark_failure(
+        self,
+        provider_name: str,
+        error: Exception,
+        latency: float,
+    ) -> None:
+
+
+        health = self._get_health(
+            provider_name
+        )
+
+
+        metrics = self._get_metrics(
+            provider_name
+        )
+
+
+        health.total_requests += 1
+
+        health.failed_requests += 1
+
+        health.consecutive_failures += 1
+
+        health.last_failure_time = (
+            time.time()
+        )
+
+        health.last_error_type = (
+            type(error).__name__
+        )
+
+        health.last_error_message = (
+            str(error)
+        )
+
+
+        metrics.total_requests += 1
+
+        metrics.failed_requests += 1
+
+        metrics.total_latency += latency
+
+
+
+        if (
+            health.consecutive_failures
+            >= self.failure_threshold
+        ):
+
+            health.circuit_state = (
+                CircuitState.OPEN.value
+            )
+
+            health.opened_at = (
+                time.time()
+            )
+
+
+
+        if isinstance(
+            error,
+            ProviderRateLimitError,
+        ):
+
+            health.status = "rate_limited"
+
+
+        elif isinstance(
+            error,
+            ProviderAuthenticationError,
+        ):
+
+            health.status = "authentication_error"
+
+
+        elif isinstance(
+            error,
+            ProviderTimeoutError,
+        ):
+
+            health.status = "timeout"
+
+
+        elif isinstance(
+            error,
+            ProviderTemporaryUnavailableError,
+        ):
+
+            health.status = "unavailable"
+
+
+        elif isinstance(
+            error,
+            ProviderInvalidDataError,
+        ):
+
+            health.status = "invalid_data"
+
+
+        else:
+
+            health.status = "degraded"
+
+
+
+
+
+    # ======================================================
+    # Error Classification
+    # ======================================================
+
+
+    @staticmethod
+    def _classify_error(
+        error: Exception,
+    ) -> Exception:
+
+
+        if isinstance(
+            error,
+            ProviderError,
+        ):
+
+            return error
+
+
+
+        message = str(
+            error
+        ).lower()
+
+
+
+        if any(
+            item in message
+            for item in (
+                "429",
+                "rate limit",
+                "too many requests",
+                "quota",
+            )
+        ):
+
+            return ProviderRateLimitError(
+                str(error)
+            )
+
+
+
+        if any(
+            item in message
+            for item in (
+                "timeout",
+                "timed out",
+                "connection",
+                "502",
+                "503",
+                "504",
+                "temporarily unavailable",
+            )
+        ):
+
+            return ProviderTemporaryUnavailableError(
+                str(error)
+            )
+
+
+
+        if any(
+            item in message
+            for item in (
+                "401",
+                "403",
+                "api key",
+                "unauthorized",
+                "authentication",
+            )
+        ):
+
+            return ProviderAuthenticationError(
+                str(error)
+            )
+
+
+
+        if any(
+            item in message
+            for item in (
+                "invalid",
+                "malformed",
+                "missing candle",
+                "empty data",
+            )
+        ):
+
+            return ProviderInvalidDataError(
+                str(error)
+            )
+
+
+
+        return error
+
+# =========================
+# PART 3/4
+# data/provider_manager.py
+# FINAL v3
+# =========================
+
+
+    # ======================================================
+    # Circuit Breaker + Cooldown
+    # ======================================================
+
 
     def _is_in_cooldown(
         self,
         provider_name: str,
     ) -> bool:
-        """
-        Return True when the provider is temporarily disabled.
-        """
 
-        expires_at = self._cooldowns.get(
-            provider_name
+
+        expires = (
+            self._cooldowns.get(
+                provider_name
+            )
         )
 
-        if expires_at is None:
+
+        if expires is None:
+
             return False
 
-        if time.monotonic() >= expires_at:
-            self._cooldowns.pop(
-                provider_name,
-                None,
+
+
+        if time.monotonic() >= expires:
+
+
+            self.clear_cooldown(
+                provider_name
             )
+
+
+            health = self._get_health(
+                provider_name
+            )
+
+
+            if (
+                health.circuit_state
+                ==
+                CircuitState.OPEN.value
+            ):
+
+                health.circuit_state = (
+                    CircuitState.HALF_OPEN.value
+                )
+
+
+                health.half_open_test = False
+
+
+
             return False
+
+
 
         return True
+
+
+
+
 
     def _put_in_cooldown(
         self,
         provider_name: str,
+        error: Exception,
     ) -> None:
-        """
-        Temporarily disable a failing provider.
-        """
+
+
+        health = self._get_health(
+            provider_name
+        )
+
 
         if self.cooldown_seconds <= 0:
+
             return
+
+
+
+        multiplier = 1
+
+
+
+        if isinstance(
+            error,
+            ProviderRateLimitError,
+        ):
+
+            multiplier = 5
+
+
+
+        elif isinstance(
+            error,
+            ProviderAuthenticationError,
+        ):
+
+            multiplier = 10
+
+
+
+        elif isinstance(
+            error,
+            ProviderTemporaryUnavailableError,
+        ):
+
+            multiplier = 2
+
+
+
+        multiplier *= min(
+            max(
+                health.consecutive_failures,
+                1,
+            ),
+            10,
+        )
+
+
+
+        expires = (
+            time.monotonic()
+            +
+            (
+                self.cooldown_seconds
+                *
+                multiplier
+            )
+        )
+
+
 
         self._cooldowns[
             provider_name
-        ] = (
-            time.monotonic()
-            + self.cooldown_seconds
-        )
+        ] = expires
+
+
+
+        health.cooldown_until = expires
+
+
+
+
 
     def clear_cooldown(
         self,
         provider_name: str,
     ) -> None:
-        """
-        Remove a provider from cooldown.
 
-        For injected providers, the generated canonical name can
-        be used as returned by `providers`.
-        """
-
-        if provider_name in self._cooldowns:
-            self._cooldowns.pop(
-                provider_name,
-                None,
-            )
-            return
-
-        try:
-            normalized_name = (
-                ProviderFactory.normalize_name(
-                    provider_name
-                )
-            )
-        except (
-            TypeError,
-            ValueError,
-        ):
-            normalized_name = provider_name
 
         self._cooldowns.pop(
-            normalized_name,
+            provider_name,
             None,
         )
 
-    def clear_all_cooldowns(self) -> None:
-        """
-        Remove all provider cooldowns.
-        """
 
-        self._cooldowns.clear()
-
-    # ------------------------------------------------------------------
-    # Failure tracking
-    # ------------------------------------------------------------------
-
-    @property
-    def last_failures(
-        self,
-    ) -> tuple[ProviderFailure, ...]:
-        """
-        Return failures from the latest request.
-        """
-
-        return tuple(
-            self._last_failures
+        health = self._provider_health.get(
+            provider_name
         )
 
-    # ------------------------------------------------------------------
-    # Retry logic
-    # ------------------------------------------------------------------
+
+        if health:
+
+            health.cooldown_until = None
+
+
+
+
+
+    def _is_provider_available(
+        self,
+        provider_name: str,
+    ) -> bool:
+
+
+        health = self._get_health(
+            provider_name
+        )
+
+
+        if self._is_in_cooldown(
+            provider_name
+        ):
+
+            return False
+
+
+
+        if (
+            health.circuit_state
+            ==
+            CircuitState.OPEN.value
+        ):
+
+            return False
+
+
+
+        if (
+            health.circuit_state
+            ==
+            CircuitState.HALF_OPEN.value
+        ):
+
+
+            if health.half_open_test:
+
+                return False
+
+
+            health.half_open_test = True
+
+
+
+        return True
+
+
+
+
+
+    # ======================================================
+    # Retry Engine
+    # ======================================================
+
 
     async def _request_with_retry(
         self,
@@ -647,159 +1261,271 @@ class ProviderManager:
         timeframe: str,
         limit: int,
     ) -> list[Candle]:
-        """
-        Execute one provider request with retry logic.
 
-        Important behavior:
 
-        - Exceptions trigger retries.
-        - Invalid results trigger retries.
-        - An empty list is treated as an unsuccessful provider
-          response when other providers are available.
-        """
-
-        total_attempts = (
+        attempts = (
             self.retries + 1
         )
 
+
         last_error: Exception | None = None
+
+
 
         for attempt in range(
             1,
-            total_attempts + 1,
+            attempts + 1,
         ):
+
+
+            start = self._register_attempt(
+                provider_name
+            )
+
+
             try:
-                candles = await provider.get_candles(
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    limit=limit,
+
+
+                candles = await asyncio.wait_for(
+                    provider.get_candles(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        limit=limit,
+                    ),
+                    timeout=self.timeout,
                 )
 
-                validated = self._validate_result(
-                    provider_name=provider_name,
-                    candles=candles,
-                    symbol=symbol,
+
+
+                validated = (
+                    self._validate_result(
+                        provider_name,
+                        candles,
+                    )
                 )
+
+
 
                 if not validated:
-                    raise ApplicationError(
-                        "Provider returned no candles.",
-                        {
-                            "provider": provider_name,
-                            "symbol": symbol,
-                            "timeframe": timeframe,
-                        },
+
+                    raise ProviderInvalidDataError(
+                        "Provider returned empty candle data."
                     )
+
+
+
+                latency = (
+                    time.monotonic()
+                    -
+                    start
+                )
+
+
+                self._mark_success(
+                    provider_name,
+                    latency,
+                )
+
 
                 return validated
 
-            except Exception as error:
+
+
+            except asyncio.TimeoutError:
+
+
+                error = ProviderTimeoutError(
+                    f"{provider_name} request timeout."
+                )
+
+
                 last_error = error
 
-                failure = ProviderFailure(
-                    provider=provider_name,
-                    attempt=attempt,
-                    error_type=type(
-                        error
-                    ).__name__,
-                    message=str(error),
+
+
+                latency = (
+                    time.monotonic()
+                    -
+                    start
                 )
 
-                self._last_failures.append(
-                    failure
+
+                self._mark_failure(
+                    provider_name,
+                    error,
+                    latency,
                 )
 
-                logger.warning(
-                    "Provider %s failed "
-                    "(attempt %d/%d): %s",
+
+                self._record_failure(
                     provider_name,
                     attempt,
-                    total_attempts,
                     error,
                 )
 
-                if attempt >= total_attempts:
-                    break
 
-                if self.retry_delay > 0:
-                    delay = (
-                        self.retry_delay
-                        * (
-                            2 ** (
-                                attempt - 1
-                            )
+
+            except Exception as error:
+
+
+                classified = (
+                    self._classify_error(
+                        error
+                    )
+                )
+
+
+                last_error = classified
+
+
+
+                latency = (
+                    time.monotonic()
+                    -
+                    start
+                )
+
+
+                self._mark_failure(
+                    provider_name,
+                    classified,
+                    latency,
+                )
+
+
+                self._record_failure(
+                    provider_name,
+                    attempt,
+                    classified,
+                )
+
+
+
+            if attempt < attempts:
+
+
+                await asyncio.sleep(
+                    self.retry_delay
+                    *
+                    (
+                        2 **
+                        (
+                            attempt - 1
                         )
                     )
+                )
 
-                    await asyncio.sleep(
-                        delay
-                    )
+
 
         assert last_error is not None
 
+
         raise last_error
 
-    # ------------------------------------------------------------------
-    # Result validation
-    # ------------------------------------------------------------------
+
+
+
+
+    def _record_failure(
+        self,
+        provider_name: str,
+        attempt: int,
+        error: Exception,
+    ) -> None:
+
+
+        self._last_failures.append(
+            ProviderFailure(
+                provider=provider_name,
+                attempt=attempt,
+                error_type=type(
+                    error
+                ).__name__,
+                message=str(
+                    error
+                ),
+            )
+        )
+
+
+        logger.warning(
+            "Provider %s attempt %s failed: %s",
+            provider_name,
+            attempt,
+            error,
+        )
+
+
+
+
+
+    # ======================================================
+    # Candle Validation
+    # ======================================================
+
 
     @staticmethod
     def _validate_result(
         provider_name: str,
         candles: object,
-        symbol: str,
     ) -> list[Candle]:
-        """
-        Validate the common provider result.
 
-        Provider implementations are responsible for constructing
-        Candle objects. The manager verifies the final contract.
-        """
+
+        if isinstance(
+            candles,
+            (str, bytes),
+        ):
+
+            raise ProviderInvalidDataError(
+                f"{provider_name} returned invalid candle type."
+            )
+
+
 
         if not isinstance(
             candles,
             list,
         ):
-            raise ApplicationError(
-                "Provider returned an invalid candle collection.",
-                {
-                    "provider": provider_name,
-                    "symbol": symbol,
-                    "expected": "list[Candle]",
-                    "actual": type(
-                        candles
-                    ).__name__,
-                },
+
+            raise ProviderInvalidDataError(
+                f"{provider_name} returned invalid candle container."
             )
 
-        for index, candle in enumerate(
-            candles
-        ):
+
+
+        result: list[Candle] = []
+
+
+
+        for candle in candles:
+
+
             if not isinstance(
                 candle,
                 Candle,
             ):
-                cause = TypeError(
-                    "Provider returned invalid candle data."
+
+                raise ProviderInvalidDataError(
+                    f"{provider_name} returned invalid candle object."
                 )
-                raise ApplicationError(
-                    "Provider returned invalid candle data.",
-                    {
-                        "provider": provider_name,
-                        "symbol": symbol,
-                        "index": index,
-                        "expected": "Candle",
-                        "actual": type(
-                            candle
-                        ).__name__,
-                    },
-                ) from cause
 
-        return list(candles)
 
-    # ------------------------------------------------------------------
-    # Candle normalization
-    # ------------------------------------------------------------------
+            result.append(
+                candle
+            )
+
+
+
+        return result
+
+
+
+
+
+    # ======================================================
+    # Candle Normalization
+    # ======================================================
+
 
     @staticmethod
     def _normalize_candles(
@@ -807,43 +1533,56 @@ class ProviderManager:
         *,
         limit: int,
     ) -> list[Candle]:
-        """
-        Final manager-level normalization.
 
-        Guarantees:
-        - chronological ordering
-        - duplicate timestamp removal
-        - maximum requested limit
-        """
 
         unique: dict[
-            tuple[str, object],
+            tuple[object, object],
             Candle,
         ] = {}
 
+
+
         for candle in candles:
+
+
             key = (
                 candle.symbol,
                 candle.timestamp,
             )
 
+
             unique[key] = candle
+
+
 
         normalized = sorted(
             unique.values(),
-            key=lambda candle: candle.timestamp,
+            key=lambda item: item.timestamp,
         )
 
+
+
         if len(normalized) > limit:
+
             normalized = normalized[
                 -limit:
             ]
 
+
+
         return normalized
 
-    # ------------------------------------------------------------------
-    # Main public API
-    # ------------------------------------------------------------------
+# =========================
+# PART 4/4
+# data/provider_manager.py
+# FINAL v3
+# =========================
+
+
+    # ======================================================
+    # Public Market Data API
+    # ======================================================
+
 
     async def get_candles(
         self,
@@ -851,237 +1590,337 @@ class ProviderManager:
         timeframe: str,
         limit: int = 100,
     ) -> list[Candle]:
-        """
-        Fetch candles using configured provider priority.
 
-        Algorithm
-        ---------
-        1. Validate basic request.
-        2. Iterate through providers in priority order.
-        3. Skip providers currently in cooldown.
-        4. Create or use the injected provider.
-        5. Retry failed requests.
-        6. Empty responses are treated as provider failures.
-        7. Fall back to the next provider.
-        8. Normalize ordering and duplicates.
-        9. Return the result.
-
-        Raises
-        ------
-        ApplicationError
-            If every usable provider fails.
-        """
 
         if not isinstance(
             symbol,
             str,
         ):
+
             raise TypeError(
-                "symbol must be a string."
+                "symbol must be string."
             )
 
-        if not symbol.strip():
-            raise ValueError(
-                "symbol cannot be empty."
-            )
 
         if not isinstance(
             timeframe,
             str,
         ):
+
             raise TypeError(
-                "timeframe must be a string."
+                "timeframe must be string."
             )
 
-        if not timeframe.strip():
-            raise ValueError(
-                "timeframe cannot be empty."
-            )
-
-        if isinstance(
-            limit,
-            bool,
-        ):
-            raise TypeError(
-                "limit must be an integer."
-            )
 
         if not isinstance(
             limit,
             int,
         ):
+
             raise TypeError(
-                "limit must be an integer."
+                "limit must be integer."
             )
 
-        if limit < 1:
+
+        if limit <= 0:
+
             raise ValueError(
-                "limit must be greater than zero."
+                "limit must be positive."
             )
 
-        normalized_symbol = (
-            symbol.strip().upper()
+
+
+        symbol = (
+            symbol.strip()
+            .upper()
         )
 
-        normalized_timeframe = (
-            timeframe.strip().upper()
+
+        timeframe = (
+            timeframe.strip()
+            .upper()
         )
 
-        self._last_failures = []
 
-        attempted_providers = 0
-        skipped_providers = 0
+
+        self._last_failures.clear()
+
+
+
+        attempted = 0
+
+        skipped = 0
+
+
 
         for provider_name in self._providers:
 
-            if self._is_in_cooldown(
+
+            if not self._is_provider_available(
                 provider_name
             ):
-                skipped_providers += 1
 
-                logger.info(
-                    "Skipping provider %s "
-                    "because it is in cooldown.",
-                    provider_name,
-                )
+                skipped += 1
 
                 continue
 
-            attempted_providers += 1
+
+
+            attempted += 1
+
+
 
             try:
+
+
                 provider = self._get_provider(
                     provider_name
                 )
 
+
+
                 candles = await self._request_with_retry(
                     provider_name,
                     provider,
-                    symbol=normalized_symbol,
-                    timeframe=normalized_timeframe,
+                    symbol=symbol,
+                    timeframe=timeframe,
                     limit=limit,
                 )
 
-                candles = self._normalize_candles(
+
+
+                normalized = self._normalize_candles(
                     candles,
                     limit=limit,
                 )
 
-                # A provider returning no usable candles is not
-                # considered successful.
-                if not candles:
-                    raise ApplicationError(
-                        "Provider returned no usable candles.",
-                        {
-                            "provider": provider_name,
-                            "symbol": normalized_symbol,
-                            "timeframe": normalized_timeframe,
-                        },
+
+
+                if not normalized:
+
+                    raise ProviderInvalidDataError(
+                        "No usable candles after normalization."
                     )
 
-                # Successful provider is removed from cooldown.
-                self._cooldowns.pop(
-                    provider_name,
-                    None,
-                )
 
-                logger.info(
-                    "Provider %s successfully returned "
-                    "%d candles for %s (%s).",
-                    provider_name,
-                    len(candles),
-                    normalized_symbol,
-                    normalized_timeframe,
-                )
 
-                return candles
+                return normalized
+
+
 
             except Exception as error:
-                self._put_in_cooldown(
-                    provider_name
-                )
+
 
                 logger.warning(
-                    "Provider %s exhausted. "
-                    "Trying next provider.",
+                    "Provider %s failed. Switching provider.",
                     provider_name,
                 )
 
-                continue
+
+                self._put_in_cooldown(
+                    provider_name,
+                    error,
+                )
+
+
 
         raise ApplicationError(
             "All market data providers failed.",
             {
-                "symbol": normalized_symbol,
-                "timeframe": normalized_timeframe,
+                "symbol": symbol,
+                "timeframe": timeframe,
                 "limit": limit,
-                "providers": list(
-                    self._providers
-                ),
-                "attempted_providers": attempted_providers,
-                "skipped_providers": skipped_providers,
+                "attempted": attempted,
+                "skipped": skipped,
                 "failures": [
                     {
-                        "provider": failure.provider,
-                        "attempt": failure.attempt,
-                        "error_type": failure.error_type,
-                        "message": failure.message,
+                        "provider": item.provider,
+                        "attempt": item.attempt,
+                        "error_type": item.error_type,
+                        "message": item.message,
                     }
-                    for failure
+                    for item
                     in self._last_failures
                 ],
             },
         )
 
-    # ------------------------------------------------------------------
-    # Provider status
-    # ------------------------------------------------------------------
+
+
+
+
+    # ======================================================
+    # Status API
+    # ======================================================
+
+
+    @staticmethod
+    def _snapshot(
+        obj,
+    ) -> dict[str, object]:
+
+
+        return {
+            key: getattr(
+                obj,
+                key,
+            )
+            for key
+            in obj.__dataclass_fields__
+        }
+
+
+
+
+
+    def get_provider_health(
+        self,
+        provider_name: str,
+    ) -> dict[str, object]:
+
+
+        return self._snapshot(
+            self._get_health(
+                provider_name
+            )
+        )
+
+
+
+
+
+    def get_all_provider_health(
+        self,
+    ) -> dict[str, dict[str, object]]:
+
+
+        return {
+            name: self._snapshot(
+                health
+            )
+            for name, health
+            in self._provider_health.items()
+        }
+
+
+
+
 
     def status(
         self,
     ) -> dict[str, object]:
-        """
-        Return a snapshot of manager/provider state.
 
-        No network requests are performed.
-        """
 
         now = time.monotonic()
 
-        cooldowns: dict[str, float] = {}
 
-        for (
-            provider_name,
-            expires_at,
-        ) in self._cooldowns.items():
-
-            remaining = max(
-                0.0,
-                expires_at - now,
-            )
-
-            cooldowns[
-                provider_name
-            ] = remaining
 
         return {
+
             "providers": list(
                 self._providers
             ),
+
+
             "cached_instances": list(
                 self._provider_instances.keys()
             ),
+
+
             "injected_instances": list(
                 self._provider_objects.keys()
             ),
-            "cooldowns": cooldowns,
-            "retries": self.retries,
-            "retry_delay": self.retry_delay,
-            "cooldown_seconds": self.cooldown_seconds,
+
+
+            "cooldowns": {
+
+                name: max(
+                    0,
+                    expires - now,
+                )
+
+                for name, expires
+                in self._cooldowns.items()
+            },
+
+
+            "health": (
+                self.get_all_provider_health()
+            ),
+
+
+            "metrics": {
+
+                name: self._snapshot(
+                    metric
+                )
+
+                for name, metric
+                in self._metrics.items()
+
+            },
+
+
+            "configuration": {
+
+                "retries": self.retries,
+
+                "timeout": self.timeout,
+
+                "retry_delay": self.retry_delay,
+
+                "cooldown_seconds": (
+                    self.cooldown_seconds
+                ),
+
+                "failure_threshold": (
+                    self.failure_threshold
+                ),
+
+            },
+
         }
 
 
+
+
+
+    @property
+    def last_failures(
+        self,
+    ) -> tuple[ProviderFailure, ...]:
+
+
+        return tuple(
+            self._last_failures
+        )
+
+
+
+
+
 __all__ = [
+
+    "ProviderError",
+
+    "ProviderRateLimitError",
+
+    "ProviderTemporaryUnavailableError",
+
+    "ProviderAuthenticationError",
+
+    "ProviderInvalidDataError",
+
+    "ProviderTimeoutError",
+
     "ProviderFailure",
+
+    "ProviderHealth",
+
+    "ProviderMetrics",
+
+    "CircuitState",
+
     "ProviderManager",
+
 ]
