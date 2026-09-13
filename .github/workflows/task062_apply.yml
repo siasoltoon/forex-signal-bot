@@ -54,3 +54,5 @@ jobs:
           git add analysis/confidence_engine.py tests/test_confidence_score_contract.py TASK-062.md .github/workflows/task062_apply.yml
           git commit -m "fix: prevent confidence supply-demand score aliasing"
           git push origin HEAD:main
+
+# TASK-062 execution trigger revision.
