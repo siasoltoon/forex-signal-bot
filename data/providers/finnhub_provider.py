@@ -21,6 +21,14 @@ class FinnhubProvider(MarketDataProvider):
     def is_configured(self) -> bool:
         return self.client.is_configured()
 
+    def supports_symbol(self, symbol: str) -> bool:
+        """Finnhub candle implementation currently covers forex only."""
+        try:
+            from config.symbols import get_market_type
+            return get_market_type(symbol) == "forex"
+        except (TypeError, ValueError):
+            return False
+
     @classmethod
     def _normalize_timeframe(cls, timeframe: str) -> str:
         if not isinstance(timeframe, str) or not timeframe.strip():
