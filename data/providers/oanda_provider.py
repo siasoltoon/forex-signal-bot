@@ -42,6 +42,14 @@ class OandaProvider(MarketDataProvider):
         """Report local OANDA credential readiness without making a network call."""
         return bool(getattr(self.client, "api_key", None))
 
+    def supports_symbol(self, symbol: str) -> bool:
+        """OANDA is used only for symbols with an explicit OANDA mapping."""
+        try:
+            normalized = self.normalize_symbol(symbol).replace("/", "").replace("_", "")
+            return normalized in self._SYMBOL_ALIASES
+        except (TypeError, ValueError):
+            return False
+
     @classmethod
     def _normalize_symbol(cls, symbol: str) -> str:
         normalized = cls.normalize_symbol(symbol)
