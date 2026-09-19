@@ -7,6 +7,7 @@ from typing import Final
 from core.errors import ApplicationError
 from data.base import MarketDataProvider
 from data.providers.alphavantage_provider import AlphaVantageProvider
+from data.providers.binance_provider import BinanceProvider
 from data.providers.finnhub_provider import FinnhubProvider
 from data.providers.oanda_provider import OandaProvider
 
@@ -40,6 +41,7 @@ class ProviderFactory:
         "oanda": OandaProvider,
         "finnhub": FinnhubProvider,
         "alphavantage": AlphaVantageProvider,
+        "binance": BinanceProvider,
     }
 
     # ------------------------------------------------------------------
@@ -59,6 +61,7 @@ class ProviderFactory:
         "alpha_vantage": "alphavantage",
         "alpha-vantage": "alphavantage",
         "alpha vantage": "alphavantage",
+        "binance": "binance",
     }
 
     # ------------------------------------------------------------------
