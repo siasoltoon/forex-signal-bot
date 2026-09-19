@@ -954,6 +954,27 @@ class ProviderManager:
                     provider_name
                 )
 
+                supports_symbol = getattr(provider, "supports_symbol", None)
+                if callable(supports_symbol) and not supports_symbol(normalized_symbol):
+                    skipped_providers += 1
+                    self._last_failures.append(
+                        ProviderFailure(
+                            provider=provider_name,
+                            attempt=0,
+                            error_type="UnsupportedSymbol",
+                            message=(
+                                f"Provider {provider_name} does not support symbol "
+                                f"{normalized_symbol}"
+                            ),
+                        )
+                    )
+                    logger.info(
+                        "Skipping provider %s: symbol %s is outside its declared capability.",
+                        provider_name,
+                        normalized_symbol,
+                    )
+                    continue
+
                 candles = await self._request_with_retry(
                     provider_name,
                     provider,
