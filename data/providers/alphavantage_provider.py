@@ -26,6 +26,14 @@ class AlphaVantageProvider(MarketDataProvider):
     def is_configured(self) -> bool:
         return self.client.is_configured()
 
+    def supports_symbol(self, symbol: str) -> bool:
+        """This provider implementation uses Alpha Vantage FX_INTRADAY only."""
+        try:
+            from config.symbols import get_market_type
+            return get_market_type(symbol) == "forex"
+        except (TypeError, ValueError):
+            return False
+
     @classmethod
     def _normalize_timeframe(cls, timeframe: str) -> str:
         canonical = cls.normalize_timeframe(timeframe)
