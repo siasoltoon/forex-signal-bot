@@ -54,3 +54,16 @@ Railway remains deferred until the capability roadmap and final regression are c
 - Focused coverage exists for profiles/execution context, advanced intelligence, portfolio/correlation/stress, research/robustness, strategy lifecycle, opportunity/heatmap, paper/shadow/replay/Time Machine, alerts, macro providers, and PC Worker pull transport.
 - Live Railway and PC Worker pull/recovery evidence is operational evidence and is not substituted by GitHub Actions success.
 - If the user-visible Actions page shows red runs, those runs must be mapped to their exact commit/run before changing production code; historical red runs must not be treated as evidence that the current HEAD is failing.
+
+## Exact-Head Phase 14–20 Verification — 2026-09-21
+- Verification HEAD: `803f9e13a38e8bb424e957d07f91e9682c7629f6`.
+- Test workflow: SUCCESS.
+- Production Readiness: SUCCESS.
+- Production Activation Validation: SUCCESS.
+- Production Activation Gate: SUCCESS.
+- Production E2E Contract Gate: SUCCESS.
+- Security Audit: SUCCESS.
+- Final Integration Gate: SUCCESS.
+- Production Observability: SUCCESS.
+- Focused capability coverage exists for advanced intelligence, portfolio, research, strategy, opportunity, paper trading, replay, Time Machine, macro/news, alerts/reporting, and tracker lifecycle.
+- No Phase 14–20 capability is marked production-live solely from these CI results; live deployment remains a separate Railway evidence boundary.
