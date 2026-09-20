@@ -831,3 +831,18 @@ Close the implemented Phase 12–20 roadmap as one controlled verification strea
 ### Verification discipline
 - If a fresh Actions run fails, repair only the concrete failing boundary, add regression coverage where appropriate, and rerun the exact resulting HEAD.
 - Do not mark a phase VERIFIED from historical SHAs when the current HEAD has not passed the required checks.
+
+## TASK-129 through TASK-151 — Exact-Head Closure — 2026-09-21
+Status: VERIFIED_CURRENT for the Phase 14–20 capability frontier represented in the current repository.
+
+- Advanced intelligence/statistical/scenario/counterfactual contracts: VERIFIED.
+- Signal-state decay/crisis/conflict gates: VERIFIED.
+- Portfolio exposure/correlation/stress and portfolio risk guard: VERIFIED.
+- Research OOS/walk-forward/overfitting/leakage/robustness/stress: VERIFIED.
+- Strategy DNA, validation binding, lifecycle, champion/challenger, adaptation, continuous evaluation, rollback and retirement safeguards: VERIFIED.
+- Opportunity ranking/heatmap: VERIFIED.
+- Paper/shadow/replay/Time Machine: VERIFIED.
+- Macro/news provider integration and risk gating: VERIFIED as implemented/CI-tested, with the economic-calendar limitation retained.
+- Alert/report and tracker lifecycle hardening: VERIFIED.
+- Exact-head CI evidence: all eight required workflows succeeded on `803f9e13a38e8bb424e957d07f91e9682c7629f6`.
+- Remaining work is not a Phase 14–20 code-completion blocker; the separate external Railway gate remains for production deployment closure.
