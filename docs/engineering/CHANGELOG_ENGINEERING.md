@@ -249,3 +249,11 @@ Railway remains deferred until required capabilities and final regression/securi
 - Extended immutable profile execution context with optional user scope, experiment ID, requested capabilities, and snapshot identity/version validation.
 - Added canonical Worker payload construction and propagated profile context through backtest, replay, Time Machine, and research workloads.
 - Added regression coverage for style decomposition and historical execution metadata.
+
+## 2026-09-21 — TASK-151 Outbound PC Worker Pull Transport
+- PR #49 was merged to `main` as `a988e293ec93fc267373d3303ed2832cc56542e1`.
+- Railway now owns the durable worker queue and exposes authenticated claim/renew/result/health operations on the existing HTTPS service.
+- Windows PC Worker pull mode executes heavy jobs locally and keeps claim leases alive during execution.
+- No public PC endpoint, router exposure, Tailscale Funnel, or Cloudflare Tunnel is required for the canonical home-PC transport.
+- All seven required workflows were green on the PR head before merge.
+- Post-merge exact-head CI and live pull/recovery verification remain pending.

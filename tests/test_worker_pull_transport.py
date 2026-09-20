@@ -52,6 +52,28 @@ def test_pull_settings_are_optional(monkeypatch) -> None:
     assert WorkerPullSettings.from_env() is None
 
 
+def test_pull_settings_require_https(monkeypatch) -> None:
+    monkeypatch.setenv("WORKER_QUEUE_API_URL", "http://example.test")
+    monkeypatch.setenv("PC_WORKER_TOKEN", "secret")
+    try:
+        WorkerPullSettings.from_env()
+    except ValueError as exc:
+        assert "HTTPS" in str(exc)
+    else:
+        raise AssertionError("non-HTTPS worker URL must be rejected")
+
+
+def test_pull_settings_reject_url_credentials(monkeypatch) -> None:
+    monkeypatch.setenv("WORKER_QUEUE_API_URL", "https://user:pass@example.test")
+    monkeypatch.setenv("PC_WORKER_TOKEN", "secret")
+    try:
+        WorkerPullSettings.from_env()
+    except ValueError as exc:
+        assert "credentials" in str(exc)
+    else:
+        raise AssertionError("credential-bearing worker URL must be rejected")
+
+
 def test_pull_settings_require_token(monkeypatch) -> None:
     monkeypatch.setenv("WORKER_QUEUE_API_URL", "https://example.test")
     monkeypatch.delenv("PC_WORKER_TOKEN", raising=False)

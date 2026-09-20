@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
 from .contracts import JobRequest, JobResult
 from .runtime import WorkerRuntime
@@ -28,6 +29,11 @@ class WorkerPullSettings:
         token = os.getenv("PC_WORKER_TOKEN", "").strip()
         if not base_url:
             return None
+        parsed = urlsplit(base_url)
+        if parsed.scheme != "https" or not parsed.netloc:
+            raise ValueError("WORKER_QUEUE_API_URL must be an absolute HTTPS URL")
+        if parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise ValueError("WORKER_QUEUE_API_URL must not contain credentials, query parameters, or fragments")
         if not token:
             raise ValueError("PC_WORKER_TOKEN must be configured when WORKER_QUEUE_API_URL is set")
         interval = float(os.getenv("WORKER_QUEUE_POLL_INTERVAL", "3"))
