@@ -18,15 +18,11 @@ logger = setup_logger()
 
 @dataclass
 class Application:
-    """
-    Main application core.
-    """
+    """Main application core."""
 
     name: str = "forex-signal-bot"
 
-    services: ServiceManager = field(
-        default_factory=ServiceManager
-    )
+    services: ServiceManager = field(default_factory=ServiceManager)
 
     health_server: HealthServer = field(init=False)
 
@@ -37,6 +33,11 @@ class Application:
             host=configuration.health_host,
             port=configuration.health_port,
         )
+
+        self.services.register(TelegramService())
+        worker_service = WorkerProcessingService.from_settings(configuration)
+        self.services.register(worker_service)
+        self.health_server.set_worker_gateway(worker_service.gateway)
 
     def health(self) -> dict:
         application_health = health_check()
@@ -61,14 +62,7 @@ class Application:
         }
 
     async def start(self) -> None:
-        """
-        Start the health endpoint before application services.
-
-        The endpoint must be reachable during dependency startup so an
-        orchestrator can distinguish "starting/not ready" (503) from a
-        connection failure. The health contract remains degraded until all
-        critical services are ready.
-        """
+        """Start the health endpoint before application services."""
 
         try:
             self.health_server.start()
@@ -80,37 +74,20 @@ class Application:
                 await self.services.stop_all()
             raise
 
-        logger.info(
-            f"{self.name} started successfully."
-        )
+        logger.info(f"{self.name} started successfully.")
 
     async def stop(self) -> None:
-        """
-        Stop application.
-        """
+        """Stop application."""
 
         try:
             self.health_server.stop()
         finally:
             await self.services.stop_all()
 
-        logger.info(
-            f"{self.name} stopped successfully."
-        )
+        logger.info(f"{self.name} stopped successfully.")
 
 
 def create_app() -> Application:
-    """
-    Application factory.
-    """
+    """Application factory."""
 
-    app = Application()
-
-    app.services.register(
-        TelegramService()
-    )
-    app.services.register(
-        WorkerProcessingService.from_settings()
-    )
-
-    return app
+    return Application()
