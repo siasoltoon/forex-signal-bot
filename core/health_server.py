@@ -31,7 +31,7 @@ class _HealthHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         request_path = urlsplit(self.path).path
         gateway = getattr(self.server, "worker_gateway", None)
-        if gateway is None or request_path not in {"/worker/claim", "/worker/result"}:
+        if gateway is None or request_path not in {"/worker/claim", "/worker/renew", "/worker/result"}:
             self.send_error(404)
             return
         if not self._authorized(gateway):
@@ -43,6 +43,10 @@ class _HealthHandler(BaseHTTPRequestHandler):
             if request_path == "/worker/claim":
                 result = gateway.claim()
                 self._write_json(result or {"status": "EMPTY"}, 200)
+                return
+            if request_path == "/worker/renew":
+                result = gateway.renew(payload)
+                self._write_json(result, 200)
                 return
             result = gateway.result(payload)
             self._write_json(result, 200)
