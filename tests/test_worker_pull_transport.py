@@ -4,7 +4,7 @@ import os
 
 from worker.contracts import JobRequest, JobResult
 from worker.dispatcher import WorkerDispatcher
-from worker.gateway import WorkerGateway
+from services.worker.gateway import WorkerGateway
 from worker.queue import WorkerQueue
 from worker.pull_client import WorkerPullSettings
 
