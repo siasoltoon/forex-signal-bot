@@ -257,3 +257,9 @@ Railway remains deferred until required capabilities and final regression/securi
 - No public PC endpoint, router exposure, Tailscale Funnel, or Cloudflare Tunnel is required for the canonical home-PC transport.
 - All seven required workflows were green on the PR head before merge.
 - Post-merge exact-head CI and live pull/recovery verification remain pending.
+
+## 2026-09-21 — Phase 14–20 Exact-Head Closure
+- Synchronized engineering state after the full Phase 14–20 capability audit.
+- Confirmed all eight required GitHub Actions workflows succeeded on exact HEAD `803f9e13a38e8bb424e957d07f91e9682c7629f6`.
+- Marked the implemented Phase 14–20 capability groups current-head verified: advanced intelligence, signal state/decision gates, portfolio intelligence, research/robustness, strategy lifecycle, opportunity/heatmap, paper/shadow/replay/Time Machine, plus associated macro/news and alert/tracker boundaries.
+- Preserved the explicit economic-calendar provider limitation and the separate Railway production gate.
