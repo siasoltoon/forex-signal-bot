@@ -199,3 +199,9 @@ The current profile execution frontier is verified at `7ee70ad23a7b5c0008298e37f
 - Backtest/replay/research/Time Machine paths preserve profile metadata when supplied.
 - Exact-head CI is green across all required workflows.
 - Railway remains the final external deployment verification boundary and is not represented as verified by this code-only CI result.\n\n## 2026-09-21 — PC Worker Pull Transport Frontier\n- Phase 7 — PC Worker / Heavy Processing has a new transport implementation merged in PR #49.\n- Railway remains the durable queue/control plane; the PC Worker uses authenticated outbound HTTPS pull mode.\n- Added authenticated `/worker/claim`, `/worker/renew`, `/worker/result`, and `/worker/health` boundaries.\n- Added fenced claim-token renewal and terminal result handling.\n- PR head `d5a9a0a88594019f838148621648b8e6ffa0f698` passed all seven required workflows before merge.\n- Merge commit `a988e293ec93fc267373d3303ed2832cc56542e1` has no post-merge workflow evidence exposed by the current connector lookup, so it is not marked exact-head VERIFIED yet.\n- Next: exact-head CI on the state-synchronized branch, then live pull-mode queue/worker integration and recovery verification.\n
+
+## 2026-09-21 — Exact-Head CI Closure for PC Worker Pull Transport
+- Main HEAD `c2c0220caceec51237eacf6e667906bf67316a77` has all eight current production/code workflows green.
+- The PC Worker pull transport and HTTPS URL hardening are code/test/CI verified at this exact HEAD.
+- Remaining validation is operational: Railway queue → PC Worker claim → lease renewal → execution → terminal result, plus worker-offline/reconnect recovery.
+- This operational validation is intentionally separate from GitHub Actions verification.
