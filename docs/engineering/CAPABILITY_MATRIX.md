@@ -122,3 +122,9 @@ The implemented roadmap through TASK-147 has passed exact-head CI on `151ea57b8e
 | Worker user/profile/experiment scope | IMPLEMENTED_CURRENT | `ProfileExecutionContext` + `context_payload` | `tests/test_profiles.py`, replay executor tests |
 | Profile-aware replay / Time Machine | IMPLEMENTED_CURRENT | `worker/executors.py`, `analysis/time_machine.py` | replay executor tests |
 | Profile-aware research context | IMPLEMENTED_CURRENT | `worker/executors.py::research_validation` | CI verification |
+
+
+## Phase 12–20 Capability Verification — 2026-09-21
+- The current matrix reflects implementation across profiles, advanced intelligence, signal-state gates, portfolio intelligence, research/robustness, strategy lifecycle, opportunity/heatmap, and paper/shadow/replay/Time Machine.
+- Verification authority remains the exact current HEAD and required CI set.
+- Production deployment and live Railway/PC Worker evidence remain separate from capability implementation status.
