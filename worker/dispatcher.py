@@ -6,7 +6,7 @@ from typing import Any
 
 from config.settings import Settings
 from .contracts import HEAVY_JOB_TYPES, JobRequest, JobResult
-from .queue import WorkerQueue
+from .queue import QueueRecord, WorkerQueue
 
 JobHandler = Callable[[dict[str, Any]], Any]
 
@@ -29,8 +29,49 @@ class WorkerDispatcher:
         queue = WorkerQueue(resolved.worker_queue_database_path)
         return cls(submit=submit, queue=queue, recovery_grace_seconds=resolved.worker_queue_recovery_grace_seconds)
 
+    def enqueue_only(self, request: JobRequest) -> JobResult:
+        if request.job_type not in HEAVY_JOB_TYPES:
+            raise ValueError(f"Unsupported PC worker job type: {request.job_type}")
+        if self._queue is None:
+            return JobResult(request.job_id, "WORKER_OFFLINE", request.job_type, error="Worker queue is not configured")
+        record = self._queue.enqueue(request)
+        return JobResult(
+            request.job_id,
+            record.status,
+            request.job_type,
+            output=record.result or {},
+            error=record.error,
+        )
+
+    def claim_next(self) -> QueueRecord | None:
+        if self._queue is None:
+            return None
+        return self._queue.claim_next()
+
+    def apply_remote_result(self, result: JobResult, claim_token: str) -> dict[str, Any]:
+        if self._queue is None:
+            raise RuntimeError("Worker queue is not configured")
+        if result.status == "COMPLETED":
+            record = self._queue.finish(result.job_id, result=result.output, claim_token=claim_token)
+        elif result.status == "FAILED":
+            record = self._queue.fail(result.job_id, result.error or "Remote worker failed", claim_token=claim_token)
+        elif result.status == "TIMEOUT":
+            record = self._queue.timeout(result.job_id, result.error or "Remote worker timeout", claim_token=claim_token)
+        elif result.status == "CANCELLED":
+            record = self._queue.cancel(result.job_id, claim_token=claim_token)
+        elif result.status == "WORKER_OFFLINE":
+            record = self._queue.requeue(result.job_id, result.error or "Remote worker offline", claim_token=claim_token)
+        else:
+            raise ValueError(f"Unsupported remote terminal status: {result.status}")
+        return {
+            "job_id": record.job_id,
+            "status": record.status,
+            "job_type": record.job_type,
+            "output": record.result or {},
+            "error": record.error,
+        }
+
     async def _renew_claim_lease(self, job_id: str, claim_token: str, timeout_seconds: int) -> None:
-        """Keep a live queue claim from being mistaken for a dead worker."""
         if self._queue is None:
             return
         interval = min(30.0, max(1.0, float(timeout_seconds) / 3.0))
@@ -43,8 +84,6 @@ class WorkerDispatcher:
         except asyncio.CancelledError:
             raise
         except Exception:
-            # The terminal transition remains fenced by the claim token. A failed
-            # heartbeat must never overwrite a newer worker's result.
             return
 
     async def submit(self, request: JobRequest) -> JobResult:
@@ -102,7 +141,6 @@ class WorkerDispatcher:
         if result.status == "COMPLETED":
             self._queue.finish(request.job_id, result=result.output, claim_token=claim_token)
         elif result.status == "WORKER_OFFLINE":
-            # Keep the durable job pending so a later heartbeat can retry it.
             self._queue.requeue(request.job_id, error=result.error or "PC worker offline", claim_token=claim_token)
         elif result.status == "TIMEOUT":
             self._queue.timeout(request.job_id, result.error or "Worker job timeout", claim_token=claim_token)
@@ -113,7 +151,6 @@ class WorkerDispatcher:
         return result
 
     async def dispatch_pending(self, limit: int = 4) -> int:
-        """Schedule durable pending jobs once the PC Worker is reachable."""
         if self._queue is None or self._submit is None:
             return 0
         if limit < 1:
