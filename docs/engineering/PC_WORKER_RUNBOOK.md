@@ -2,74 +2,88 @@
 
 ## Architecture
 
+The PC Worker uses outbound pull mode for the home-PC deployment.
+
 - Railway runs the Telegram/control plane and the durable SQLite-backed worker queue.
-- The Windows PC runs the PC Worker process.
-- Railway reaches the PC Worker through an HTTPS endpoint.
-- The PC Worker endpoint requires the shared PC_WORKER_TOKEN.
-- Worker availability is optional: when the worker is offline, heavy jobs remain PENDING and are retried after an authenticated worker heartbeat reports READY.
-
-## Windows PC setup
-
-From the repository root:
-
-1. Install the project Python dependencies.
-2. Create a strong random worker token and keep it out of Git:
-   ~~~powershell
-   $env:PC_WORKER_TOKEN = [Convert]::ToHexString((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
-   ~~~
-3. Start the worker:
-   ~~~powershell
-   $env:PC_WORKER_HOST = "127.0.0.1"
-   $env:PC_WORKER_PORT = "8765"
-   python -m worker.main
-   ~~~
-4. In another PowerShell window, verify locally:
-   ~~~powershell
-   Invoke-WebRequest http://127.0.0.1:8765/health
-   ~~~
-   The response must report READY.
-
-## HTTPS endpoint
-
-For Railway to reach a home PC without port forwarding, Tailscale Funnel can proxy the local worker over HTTPS. Keep the worker itself bound to 127.0.0.1; Funnel terminates public TLS and proxies to localhost.
-
-Example:
-
-~~~powershell
-tailscale funnel 8765
-tailscale funnel status
-~~~
-
-Copy the HTTPS *.ts.net URL shown by Tailscale.
+- Railway exposes an authenticated worker gateway on its existing HTTPS service.
+- The Windows PC Worker makes outbound HTTPS requests to Railway.
+- The PC Worker claims a queued job, executes it locally, renews its claim lease, and posts the result back.
+- The Worker itself remains bound to 127.0.0.1:8765 for local diagnostics.
+- No port forwarding, Tailscale Funnel, Cloudflare Tunnel, or public PC endpoint is required.
+- PC_WORKER_TOKEN is the shared secret for the Railway worker gateway and local worker.
 
 ## Railway variables
 
-Configure:
+Configure on the Railway application:
 
-- PC_WORKER_URL=https://<your-worker>.ts.net
-- PC_WORKER_TOKEN=<same-secret-token>
-- PC_WORKER_TIMEOUT=30
-- PC_WORKER_HEARTBEAT_MAX_AGE=120
-- WORKER_QUEUE_DATABASE_PATH=worker_queue.sqlite3
+~~~text
+PC_WORKER_MODE=pull
+PC_WORKER_TOKEN=<strong-secret>
+WORKER_QUEUE_DATABASE_PATH=worker_queue.sqlite3
+~~~
 
-After Railway starts, the worker service performs an authenticated heartbeat and keeps checking readiness. Heavy jobs are dispatched only when the worker is READY.
+Do not configure PC_WORKER_URL for pull mode.
+
+The Railway service must have a Railway-provided public HTTPS domain.
+
+## Windows PC setup
+
+From the PC Worker repository root:
+
+~~~powershell
+$env:WORKER_QUEUE_API_URL = "https://<your-railway-domain>"
+$env:PC_WORKER_TOKEN = "<same-secret>"
+$env:WORKER_QUEUE_POLL_INTERVAL = "3"
+$env:WORKER_QUEUE_REQUEST_TIMEOUT = "30"
+python -m worker.main
+~~~
+
+Prefer storing these values in the local .env file because the project already loads dotenv automatically. Never commit .env.
+
+The worker starts two local capabilities:
+
+1. 127.0.0.1:8765 for local worker health/jobs.
+2. Outbound HTTPS pull transport to Railway.
+
+## Pull lifecycle
+
+~~~text
+Railway queue
+    |
+    | POST /worker/claim
+    v
+PC Worker
+    |
+    | execute locally
+    |
+    +-- POST /worker/renew   (while running)
+    |
+    +-- POST /worker/result
+             |
+             v
+      Railway queue COMPLETED
+~~~
+
+The claim token is a fenced lease. A stale worker cannot overwrite a newer worker's result.
+
+If the PC is offline, queued jobs remain PENDING. When the PC returns, the next polling cycle claims pending work.
 
 ## Security
 
-- Never expose the worker without PC_WORKER_TOKEN.
-- Never put the token in Git, workflow files, logs, Telegram messages, or screenshots.
-- Funnel makes the endpoint reachable from the public internet, so the bearer token is the application-level access control.
-- If the token is ever exposed, rotate it on both the PC Worker and Railway immediately.
+- /worker/claim, /worker/renew, /worker/result, and /worker/health require Authorization: Bearer <PC_WORKER_TOKEN>.
+- /health remains the unauthenticated Railway health endpoint.
+- Never put the token in Git, logs, Telegram messages, screenshots, or issue comments.
+- Never expose the PC Worker port through the router.
+- If the token is exposed, rotate it on Railway and the PC immediately.
 
-## Connection verification
+## Verification
 
-Expected sequence:
-
-1. PC Worker starts and logs ready.
-2. Tailscale Funnel reports the public HTTPS endpoint.
-3. Railway has matching PC_WORKER_URL and PC_WORKER_TOKEN.
-4. Railway worker service health changes to READY.
-5. A profile backtest submitted from Telegram is accepted by the PC Worker.
-6. The queue record reaches COMPLETED.
-7. If the PC is stopped, new heavy jobs remain PENDING.
-8. When the PC Worker returns and heartbeat becomes READY, pending jobs are retried automatically.
+1. Deploy Railway with PC_WORKER_MODE=pull and the token.
+2. Generate or confirm the Railway public HTTPS domain.
+3. Set WORKER_QUEUE_API_URL and the same token on the PC.
+4. Start the PC Worker.
+5. Worker logs must show pull transport enabled.
+6. Submit a heavy job from the application.
+7. Worker claims it and executes it locally.
+8. The claim lease is renewed while execution continues.
+9. Railway queue record becomes COMPLETED, FAILED, TIMEOUT, or CANCELLED.
