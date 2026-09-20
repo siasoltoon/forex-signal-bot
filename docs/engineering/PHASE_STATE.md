@@ -218,3 +218,37 @@ The current profile execution frontier is verified at `7ee70ad23a7b5c0008298e37f
 - Phase 19 — Opportunity Intelligence: explainable opportunity ranking and heatmap are implemented with focused tests and fail-closed treatment of non-executable states.
 - Phase 20 — Paper/Shadow/Replay: paper ledger, equity/mark-to-market, durable shadow comparison store, market replay and Time Machine foundations are implemented with focused tests.
 - Closure rule: Phases 14–20 are not marked production-verified until the exact resulting HEAD passes the required CI set; Phase 12/13 additionally require fresh Railway evidence.
+
+## Phase 14–20 Exact-Head Verification Closure — 2026-09-21
+All eight required GitHub Actions workflows completed successfully on exact HEAD `803f9e13a38e8bb424e957d07f91e9682c7629f6`.
+
+### Phase 14 — Advanced Intelligence Foundation
+Status: VERIFIED_CURRENT
+Evidence: statistical analysis, scenarios, counterfactuals, signal decay, crisis classification, and decision gates are implemented with focused regression coverage and exact-head CI.
+
+### Phase 15 — Signal State / Decision Gates
+Status: VERIFIED_CURRENT
+Evidence: freshness/decay state, crisis gating, conflict gating, and fail-closed decision behavior are implemented and covered by focused tests.
+
+### Phase 16 — Portfolio Intelligence
+Status: VERIFIED_CURRENT
+Evidence: exposure/concentration/drawdown, correlation matrix, deterministic stress/sensitivity, and portfolio-aware pre-trade risk boundaries are implemented; heavy batches remain PC Worker scoped.
+
+### Phase 17 — Advanced Research
+Status: VERIFIED_CURRENT
+Evidence: OOS, walk-forward, overfitting diagnostics, temporal leakage checks, robustness, stress/sensitivity, and deterministic research workloads are implemented and CI-verified.
+
+### Phase 18 — Strategy Intelligence
+Status: VERIFIED_CURRENT
+Evidence: strategy DNA/versioning, validation binding, lifecycle, champion/challenger, adaptation, continuous evaluation, rollback, retirement safeguards, and audit history are implemented and CI-verified.
+
+### Phase 19 — Opportunity Intelligence
+Status: VERIFIED_CURRENT
+Evidence: explainable risk-aware opportunity ranking and heatmap are implemented, integrated with scanning, and fail closed for non-executable states.
+
+### Phase 20 — Paper / Shadow / Replay / Time Machine
+Status: VERIFIED_CURRENT
+Evidence: paper ledger/equity lifecycle, durable shadow comparison, market replay, and deterministic Time Machine foundations are implemented and CI-verified.
+
+### Explicit non-closure boundary
+Phase 12/13 live Railway synchronization, health, and restart/recovery remain external deployment evidence and are not implied by Phase 14–20 CI.
