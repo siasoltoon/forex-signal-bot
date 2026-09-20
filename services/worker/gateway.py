@@ -36,6 +36,13 @@ class WorkerGateway:
             "claim_token": record.claim_token,
         }
 
+    def renew(self, payload: dict[str, Any]) -> dict[str, Any]:
+        job_id = payload.get("job_id")
+        claim_token = payload.get("claim_token")
+        if not isinstance(job_id, str) or not job_id.strip() or not isinstance(claim_token, str) or not claim_token.strip():
+            raise ValueError("job_id and claim_token are required")
+        return self.dispatcher.renew_remote_claim(job_id, claim_token)
+
     def result(self, payload: dict[str, Any]) -> dict[str, Any]:
         required = ("job_id", "job_type", "status", "claim_token")
         if any(not isinstance(payload.get(key), str) or not payload[key].strip() for key in required):
