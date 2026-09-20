@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -9,10 +10,11 @@ from services.base import BaseService
 from worker.client import PCWorkerClient
 from worker.contracts import JobRequest, JobResult
 from worker.dispatcher import WorkerDispatcher
+from worker.gateway import WorkerGateway
 
 
 class WorkerProcessingService(BaseService):
-    """Application boundary for optional heavy Forex PC-worker processing."""
+    """Application boundary for optional heavy PC-worker processing."""
 
     name = "worker_processing"
     critical = False
@@ -23,6 +25,8 @@ class WorkerProcessingService(BaseService):
         configured: bool,
         client: PCWorkerClient | None = None,
         heartbeat_max_age: int = 120,
+        pull_mode: bool = False,
+        gateway: WorkerGateway | None = None,
     ) -> None:
         if dispatcher is None:
             raise TypeError("dispatcher cannot be None")
@@ -30,7 +34,9 @@ class WorkerProcessingService(BaseService):
             raise ValueError("heartbeat_max_age must be at least 1 second")
         self.dispatcher = dispatcher
         self.configured = configured
+        self.pull_mode = pull_mode
         self._client = client
+        self._gateway = gateway
         self._heartbeat_max_age = heartbeat_max_age
         self._last_heartbeat: dict[str, Any] | None = None
         self._heartbeat_task: asyncio.Task[None] | None = None
@@ -38,7 +44,9 @@ class WorkerProcessingService(BaseService):
     @classmethod
     def from_settings(cls, settings: Settings | None = None) -> "WorkerProcessingService":
         resolved = settings or Settings.load()
+        pull_mode = os.getenv("PC_WORKER_MODE", "").strip().lower() == "pull"
         client: PCWorkerClient | None = None
+
         if resolved.pc_worker_url:
             client = PCWorkerClient(
                 resolved.pc_worker_url,
@@ -58,16 +66,30 @@ class WorkerProcessingService(BaseService):
 
         dispatcher = WorkerDispatcher.from_settings(
             settings=resolved,
-            submit=submit,
-        )
-        return cls(
-            dispatcher=dispatcher,
-            configured=client is not None,
-            client=client,
-            heartbeat_max_age=resolved.pc_worker_heartbeat_max_age,
+            submit=submit if client is not None else None,
         )
 
+        gateway = None
+        if pull_mode:
+            gateway = WorkerGateway(dispatcher, resolved.pc_worker_token or "")
+
+        return cls(
+            dispatcher=dispatcher,
+            configured=client is not None or pull_mode,
+            client=client,
+            heartbeat_max_age=resolved.pc_worker_heartbeat_max_age,
+            pull_mode=pull_mode,
+            gateway=gateway,
+        )
+
+    @property
+    def gateway(self) -> WorkerGateway | None:
+        return self._gateway
+
     async def submit(self, request: JobRequest) -> JobResult:
+        if self.pull_mode:
+            return self.dispatcher.enqueue_only(request)
+
         if not self.configured:
             return JobResult(
                 request.job_id,
@@ -91,8 +113,9 @@ class WorkerProcessingService(BaseService):
         return await asyncio.gather(*(self.submit(request) for request in requests))
 
     async def heartbeat(self) -> dict[str, Any]:
-        """Verify authenticated PC-worker readiness through the application boundary."""
-        if self._client is None:
+        if self.pull_mode:
+            result = self._gateway.health() if self._gateway else {"status": "WORKER_OFFLINE"}
+        elif self._client is None:
             result = {"status": "WORKER_OFFLINE", "configured": False}
         else:
             result = await asyncio.to_thread(self._client.heartbeat)
@@ -100,7 +123,8 @@ class WorkerProcessingService(BaseService):
         return result
 
     async def start(self) -> None:
-        """Start authenticated worker monitoring and queued-job recovery."""
+        if self.pull_mode:
+            return
         if not self.configured:
             return
         if self._heartbeat_task is None or self._heartbeat_task.done():
@@ -156,13 +180,17 @@ class WorkerProcessingService(BaseService):
         return "READY" if age <= self._heartbeat_max_age else "STALE"
 
     def health(self) -> dict[str, Any]:
-        readiness = "UNCONFIGURED" if not self.configured else self._heartbeat_readiness()
+        if self.pull_mode:
+            readiness = "READY" if self._gateway is not None else "UNCONFIGURED"
+        else:
+            readiness = "UNCONFIGURED" if not self.configured else self._heartbeat_readiness()
 
         health: dict[str, Any] = {
             "service": self.name,
             "status": "ok" if readiness == "READY" else "degraded",
             "critical": self.critical,
             "configured": self.configured,
+            "mode": "pull" if self.pull_mode else "push",
             "readiness": readiness,
             "dispatcher": self.dispatcher.health(),
         }
