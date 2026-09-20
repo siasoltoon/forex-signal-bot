@@ -187,3 +187,9 @@ The configured restart policy and healthchecks are mechanisms; the successful li
 - Twelve Data covers the configured multi-asset universe through the common OHLC time-series contract; commodity mappings include XAU/USD, XAG/USD, WTI/USD and BRENT/USD.
 - Exact-head Actions verification is pending. Runtime commodity/asset availability remains dependent on `TWELVEDATA_API_KEY` and provider plan/symbol entitlement.
 - No live production verification is claimed.\n\n## Recovery Frontier — 2026-09-21 — PC Worker Pull Transport\n- CURRENT_PHASE: Phase 7 / Worker Transport hardening\n- CURRENT_TASK: TASK-152\n- LAST_MERGED_HEAD: `a988e293ec93fc267373d3303ed2832cc56542e1`\n- PRE_MERGE_VERIFIED_HEAD: `d5a9a0a88594019f838148621648b8e6ffa0f698`\n- PR #49 passed all seven required workflows before merge.\n- Current merge commit has no post-merge CI evidence exposed by the connector.\n- Pull mode removes the need for inbound connectivity to the home PC: Railway queues durable work and the PC pulls over outbound HTTPS.\n- NEXT_ACTION: verify the state-sync head with Actions; if green, perform controlled Railway-to-PC pull integration, including offline/reconnect recovery and claim-lease fencing.\n
+
+## Phase 14–20 Recovery / Verification Closure — 2026-09-21
+- Exact current HEAD: `803f9e13a38e8bb424e957d07f91e9682c7629f6`.
+- All eight required workflows are green on this exact HEAD.
+- Resume point after this closure is the external Railway/PC Worker operational gate, not further Phase 14–20 implementation.
+- If a future change reopens a Phase 14–20 boundary, use exact-head workflow evidence and focused regression failure as the trigger for repair; do not reopen the completed capability set speculatively.
