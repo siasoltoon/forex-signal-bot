@@ -80,3 +80,11 @@ The historical Phase-13 code audit is not the end of feature development. The ne
 - Phase 12/13 production closure remains evidence-bound to live Railway verification; code/CI success alone does not satisfy the deployment gate.
 - Phases 14–20 capability implementation is present in the repository and must be tracked by exact-head CI plus focused regression evidence; no feature is marked production-verified solely from implementation presence.
 - No agent/Ollama/model-orchestration architecture is introduced by this closure.
+
+## Phase 14–20 Exact-Head Closure — 2026-09-21
+- Exact current main HEAD: `803f9e13a38e8bb424e957d07f91e9682c7629f6`.
+- All eight required production/code workflows completed successfully on this exact HEAD: Test, Production Readiness, Production Activation Validation, Production Activation Gate, Production E2E Contract Gate, Security Audit, Final Integration Gate, and Production Observability.
+- Phases 14–20 capability work is therefore current-head CI VERIFIED: Advanced Intelligence; Signal State/Decision Gates; Portfolio Intelligence; Advanced Research; Strategy Intelligence; Opportunity/Heatmap; Paper/Shadow/Replay/Time Machine.
+- This closure does not claim live Railway verification. Phase 12/13 remain externally gated by fresh Railway deployment/health/recovery evidence.
+- The economic-calendar limitation remains explicit: NewsAPI publication timestamps and FRED observation dates are not canonical scheduled release timestamps.
+- No agent/Ollama/model-orchestration architecture was introduced.
