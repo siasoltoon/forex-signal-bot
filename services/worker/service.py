@@ -10,7 +10,7 @@ from services.base import BaseService
 from worker.client import PCWorkerClient
 from worker.contracts import JobRequest, JobResult
 from worker.dispatcher import WorkerDispatcher
-from worker.gateway import WorkerGateway
+from services.worker.gateway import WorkerGateway
 
 
 class WorkerProcessingService(BaseService):
