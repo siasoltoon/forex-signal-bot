@@ -65,3 +65,9 @@ The historical Phase-13 code audit is not the end of feature development. The ne
 - Full test suite: 951 passed.
 - Profile execution work through TASK-149 is verified at current HEAD.
 - Railway remains a separate external deployment gate; this code verification does not claim a fresh Railway deployment result.\n\n## Current Engineering Handoff — 2026-09-21 — PC Worker Pull Transport\n- Current main HEAD: `a988e293ec93fc267373d3303ed2832cc56542e1`.\n- PR #49 (Add outbound PC Worker pull transport) is merged into `main`.\n- The PR head `d5a9a0a88594019f838148621648b8e6ffa0f698` passed all seven required CI workflows before merge.\n- New canonical transport: Railway owns the durable queue; the Windows PC Worker pulls jobs over outbound HTTPS, renews fenced claim leases, and posts terminal results. No public PC endpoint/tunnel is required.\n- The existing localhost Worker HTTP server remains available for local diagnostics.\n- Current merged HEAD has no post-merge workflow run/status reported by the GitHub connector; therefore this handoff does not claim exact-merge-head CI verification.\n- Next action: verify CI on the resulting state-sync head, then perform controlled PC Worker pull integration validation against the deployed Railway service.\n
+
+## Exact-Head CI Closure — 2026-09-21
+- Current main HEAD: `c2c0220caceec51237eacf6e667906bf67316a77`.
+- Post-merge exact-head GitHub Actions verification is now green across all eight workflows: Test, Production Readiness, Production Activation Validation, Production Activation Gate, Production E2E Contract Gate, Security Audit, Final Integration Gate, and Production Observability.
+- TASK-152 code/CI synchronization is therefore exact-head CI VERIFIED.
+- The remaining TASK-152 boundary is live PC Worker pull integration/recovery against the deployed Railway service; no live deployment verification is claimed by CI.
