@@ -35,18 +35,18 @@ class WorkerDispatcher:
         if self._queue is None:
             return JobResult(request.job_id, "WORKER_OFFLINE", request.job_type, error="Worker queue is not configured")
         record = self._queue.enqueue(request)
-        return JobResult(
-            request.job_id,
-            record.status,
-            request.job_type,
-            output=record.result or {},
-            error=record.error,
-        )
+        return JobResult(request.job_id, record.status, request.job_type, output=record.result or {}, error=record.error)
 
     def claim_next(self) -> QueueRecord | None:
         if self._queue is None:
             return None
         return self._queue.claim_next()
+
+    def renew_remote_claim(self, job_id: str, claim_token: str) -> dict[str, Any]:
+        if self._queue is None:
+            raise RuntimeError("Worker queue is not configured")
+        record = self._queue.renew_lease(job_id, claim_token)
+        return {"job_id": record.job_id, "status": record.status}
 
     def apply_remote_result(self, result: JobResult, claim_token: str) -> dict[str, Any]:
         if self._queue is None:
