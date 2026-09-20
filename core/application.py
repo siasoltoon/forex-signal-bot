@@ -35,9 +35,11 @@ class Application:
         )
 
         self.services.register(TelegramService())
-        worker_service = WorkerProcessingService.from_settings(configuration)
+        worker_service = WorkerProcessingService.from_settings()
         self.services.register(worker_service)
-        self.health_server.set_worker_gateway(worker_service.gateway)
+        set_gateway = getattr(self.health_server, "set_worker_gateway", None)
+        if callable(set_gateway):
+            set_gateway(getattr(worker_service, "gateway", None))
 
     def health(self) -> dict:
         application_health = health_check()
