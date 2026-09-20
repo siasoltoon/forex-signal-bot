@@ -8,11 +8,7 @@ from worker.dispatcher import WorkerDispatcher
 
 
 class WorkerGateway:
-    """Authenticated pull gateway for a remote PC Worker.
-
-    The PC Worker makes outbound HTTPS requests to Railway, claims a queued
-    job, executes it locally, and posts the fenced result back.
-    """
+    """Authenticated pull gateway for a remote PC Worker."""
 
     def __init__(self, dispatcher: WorkerDispatcher, token: str) -> None:
         if not token:
@@ -45,12 +41,19 @@ class WorkerGateway:
         if any(not isinstance(payload.get(key), str) or not payload[key].strip() for key in required):
             raise ValueError("job_id, job_type, status and claim_token are required")
 
+        status = payload["status"]
+        if status not in {"COMPLETED", "FAILED", "TIMEOUT", "CANCELLED", "WORKER_OFFLINE"}:
+            status = "FAILED"
+            error = payload.get("error") or f"Remote worker returned unsupported status: {payload['status']}"
+        else:
+            error = payload.get("error")
+
         result = JobResult(
             job_id=payload["job_id"],
-            status=payload["status"],
+            status=status,
             job_type=payload["job_type"],
             output=payload.get("output") if isinstance(payload.get("output"), dict) else {},
-            error=payload.get("error") if isinstance(payload.get("error"), str) else None,
+            error=error if isinstance(error, str) else None,
             worker_id=payload.get("worker_id") if isinstance(payload.get("worker_id"), str) else None,
         )
         return self.dispatcher.apply_remote_result(result, payload["claim_token"])
