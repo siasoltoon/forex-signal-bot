@@ -205,3 +205,16 @@ The current profile execution frontier is verified at `7ee70ad23a7b5c0008298e37f
 - The PC Worker pull transport and HTTPS URL hardening are code/test/CI verified at this exact HEAD.
 - Remaining validation is operational: Railway queue → PC Worker claim → lease renewal → execution → terminal result, plus worker-offline/reconnect recovery.
 - This operational validation is intentionally separate from GitHub Actions verification.
+
+
+## Phase 12–20 Closure Audit — 2026-09-21
+- Phase 12 — Deployment: CODE/CI surface current; live Railway synchronization/health/restart evidence remains the required external acceptance boundary.
+- Phase 13 — Final Production Audit: CODE/CI surface current; final live deployment gate remains pending.
+- Phase 14 — Advanced Intelligence Foundation: implementation complete at the current capability frontier; exact-head CI evidence is required for current-head VERIFIED status.
+- Phase 15 — Signal State / Decision Gates: signal decay, crisis classification, and conflict gating are implemented and covered by focused tests; exact-head CI remains the verification authority.
+- Phase 16 — Portfolio Intelligence: portfolio engine, correlation matrix, and portfolio stress boundaries are implemented with focused tests; large workloads remain PC Worker scoped.
+- Phase 17 — Advanced Research: OOS, walk-forward, overfitting diagnostics, temporal leakage checks, robustness, stress/sensitivity and deterministic research workloads are implemented with focused tests.
+- Phase 18 — Strategy Intelligence: strategy DNA, validation binding, lifecycle, champion/challenger, adaptation, continuous evaluation, rollback and retirement safeguards are implemented with focused tests.
+- Phase 19 — Opportunity Intelligence: explainable opportunity ranking and heatmap are implemented with focused tests and fail-closed treatment of non-executable states.
+- Phase 20 — Paper/Shadow/Replay: paper ledger, equity/mark-to-market, durable shadow comparison store, market replay and Time Machine foundations are implemented with focused tests.
+- Closure rule: Phases 14–20 are not marked production-verified until the exact resulting HEAD passes the required CI set; Phase 12/13 additionally require fresh Railway evidence.
