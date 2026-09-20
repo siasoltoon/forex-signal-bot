@@ -122,16 +122,3 @@ The implemented roadmap through TASK-147 has passed exact-head CI on `151ea57b8e
 | Worker user/profile/experiment scope | IMPLEMENTED_CURRENT | `ProfileExecutionContext` + `context_payload` | `tests/test_profiles.py`, replay executor tests |
 | Profile-aware replay / Time Machine | IMPLEMENTED_CURRENT | `worker/executors.py`, `analysis/time_machine.py` | replay executor tests |
 | Profile-aware research context | IMPLEMENTED_CURRENT | `worker/executors.py::research_validation` | CI verification |
-
-
-## Phase 12–20 Capability Verification — 2026-09-21
-- The current matrix reflects implementation across profiles, advanced intelligence, signal-state gates, portfolio intelligence, research/robustness, strategy lifecycle, opportunity/heatmap, and paper/shadow/replay/Time Machine.
-- Verification authority remains the exact current HEAD and required CI set.
-- Production deployment and live Railway/PC Worker evidence remain separate from capability implementation status.
-
-## Phase 14–20 Verification Status — 2026-09-21
-The implementation rows for Phase 14–20 are now **VERIFIED_CURRENT** at exact HEAD `803f9e13a38e8bb424e957d07f91e9682c7629f6` because all eight required production/code workflows succeeded.
-
-Verified capability groups: statistical/scenario/counterfactual analysis; signal decay/crisis/conflict gates; portfolio exposure/correlation/stress and portfolio risk guard; OOS/walk-forward/overfitting/leakage/robustness research; strategy DNA/validation/lifecycle/champion-challenger/adaptation/continuous evaluation/rollback/retirement; opportunity ranking/heatmap; paper/shadow/replay/Time Machine; macro/news collection/cache/gating; deterministic alerts/reports and tracker lifecycle auditing.
-
-Boundary retained: no canonical scheduled economic-release calendar is claimed from NewsAPI/FRED alone. Railway production deployment remains separate from capability CI verification.
