@@ -806,3 +806,13 @@ Evidence:
 - Test workflow passed with 951 tests.
 - Production Readiness, Production Activation Gate, Production E2E Contract Gate, Production Activation Validation, Security Audit, Production Observability, and Final Integration Gate all succeeded on the same exact HEAD.
 - The three temporary test failures from the preceding commit were corrected by exporting the public `ProfileStyle` contract from `profiles`.\n\n## TASK-151\nPhase: Phase 7 — PC Worker / Heavy Processing\nTitle: Outbound PC Worker Pull Transport\nImplementation Status: MERGED — pre-merge CI VERIFIED; post-merge exact-head verification pending\nEvidence:\n- PR #49 merged to `main` as `a988e293ec93fc267373d3303ed2832cc56542e1`.\n- Railway exposes authenticated worker claim/renew/result/health boundaries over its existing HTTPS service.\n- Windows PC Worker polls Railway over outbound HTTPS, executes heavy workloads locally, renews claim leases, and posts terminal results.\n- Durable queue remains authoritative and stale workers are fenced by claim tokens.\n- PR head `d5a9a0a88594019f838148621648b8e6ffa0f698` passed Test, Production Readiness, Production Activation Validation, Production Activation Gate, Production E2E Contract Gate, Security Audit, and Final Integration Gate.\n- No production/live Railway pull-mode verification is claimed yet.\n\n## TASK-152\nPhase: Engineering State / Verification\nTitle: Post-merge exact-head CI and PC Worker pull integration verification\nImplementation Status: IN_PROGRESS\nScope:\n- Synchronize engineering state to the actual merged main HEAD.\n- Obtain exact-head CI evidence after the state synchronization.\n- Validate Railway queue → PC Worker claim → lease renewal → execution → terminal result.\n- Validate worker-offline persistence and reconnect recovery.\n- Keep deployment evidence separate from code/CI verification.\n
+
+## TASK-152 — Verification Update
+Phase: Engineering State / Verification
+Title: Post-merge exact-head CI and PC Worker pull integration verification
+Implementation Status: CODE/CI VERIFIED — live integration pending
+Evidence:
+- Exact main HEAD: `c2c0220caceec51237eacf6e667906bf67316a77`.
+- All eight current workflows completed successfully on the exact HEAD: Test, Production Readiness, Production Activation Validation, Production Activation Gate, Production E2E Contract Gate, Security Audit, Final Integration Gate, Production Observability.
+- Secure PC Worker pull URL validation and focused regression tests are included in this HEAD.
+- Remaining acceptance evidence: live Railway queue/worker pull integration and offline/reconnect recovery.
