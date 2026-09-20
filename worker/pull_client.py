@@ -66,6 +66,9 @@ class WorkerPullClient:
             return None
         return data
 
+    def renew(self, job_id: str, claim_token: str) -> dict[str, Any]:
+        return self._request("/worker/renew", payload={"job_id": job_id, "claim_token": claim_token})
+
     def submit_result(self, result: JobResult, claim_token: str) -> dict[str, Any]:
         return self._request(
             "/worker/result",
@@ -79,6 +82,22 @@ class WorkerPullClient:
                 "claim_token": claim_token,
             },
         )
+
+    async def _renew_loop(self, job_id: str, claim_token: str, timeout_seconds: int, stop_event: asyncio.Event) -> None:
+        interval = min(30.0, max(1.0, timeout_seconds / 3.0))
+        while not stop_event.is_set():
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=interval)
+                return
+            except asyncio.TimeoutError:
+                pass
+            try:
+                response = await asyncio.to_thread(self.renew, job_id, claim_token)
+                if response.get("status") != "RUNNING":
+                    logger.warning("Worker claim lease is no longer RUNNING: %s", job_id)
+                    return
+            except Exception as exc:
+                logger.warning("Failed to renew worker claim %s: %s", job_id, exc)
 
     async def run(self, runtime: WorkerRuntime, stop_event: asyncio.Event) -> None:
         while not stop_event.is_set():
@@ -94,7 +113,16 @@ class WorkerPullClient:
                         allow_cpu_fallback=bool(claim.get("allow_cpu_fallback", True)),
                     )
                     claim_token = str(claim["claim_token"])
-                    result = await runtime.execute(request)
+                    lease_stop = asyncio.Event()
+                    lease_task = asyncio.create_task(
+                        self._renew_loop(request.job_id, claim_token, request.timeout_seconds, lease_stop)
+                    )
+                    try:
+                        result = await runtime.execute(request)
+                    finally:
+                        lease_stop.set()
+                        lease_task.cancel()
+                        await asyncio.gather(lease_task, return_exceptions=True)
                     await asyncio.to_thread(self.submit_result, result, claim_token)
                     continue
             except (urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
