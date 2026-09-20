@@ -40,3 +40,9 @@ Railway remains deferred until the capability roadmap and final regression are c
 - Full pytest suite: **951 passed**.
 - Required workflows: Test, Production Readiness, Production Activation Gate, Production E2E Contract Gate, Production Activation Validation, Security Audit, Production Observability, Final Integration Gate — all **success** on the same HEAD.
 - Profile style decomposition, snapshot validation, Worker scope metadata, replay context propagation, and public ProfileStyle exports are covered by the verified test run.\n\n## Current Verification Frontier — 2026-09-21\n- Merged main HEAD: `a988e293ec93fc267373d3303ed2832cc56542e1`.\n- PR #49 head `d5a9a0a88594019f838148621648b8e6ffa0f698` passed all seven required workflows before merge.\n- The merge commit itself currently reports no workflow runs/statuses through the connector lookup.\n- Therefore TASK-151 is not exact-head VERIFIED on `a988e293ec93fc267373d3303ed2832cc56542e1`; pre-merge CI evidence is retained only as supporting evidence.\n- Required next validation: exact-head CI after state synchronization, followed by live pull-mode integration/recovery evidence.\n
+
+## Exact-Head Verification Closure — 2026-09-21
+- Verified code/CI HEAD: `c2c0220caceec51237eacf6e667906bf67316a77`.
+- All eight current workflows are green on the same exact HEAD.
+- Test, Production Readiness, Production Activation Validation, Production Activation Gate, Production E2E Contract Gate, Security Audit, Final Integration Gate, and Production Observability all completed successfully.
+- This verifies code/CI state only; live Railway/PC Worker integration and recovery remain separate operational evidence.
