@@ -816,3 +816,18 @@ Evidence:
 - All eight current workflows completed successfully on the exact HEAD: Test, Production Readiness, Production Activation Validation, Production Activation Gate, Production E2E Contract Gate, Security Audit, Final Integration Gate, Production Observability.
 - Secure PC Worker pull URL validation and focused regression tests are included in this HEAD.
 - Remaining acceptance evidence: live Railway queue/worker pull integration and offline/reconnect recovery.
+
+
+## Phase 12–20 Closure Stream — 2026-09-21
+### Objective
+Close the implemented Phase 12–20 roadmap as one controlled verification stream, repair concrete CI regressions, and keep production/deployment evidence separate from code evidence.
+
+### Current evidence
+- Last recorded exact-head CI verification: c2c0220caceec51237eacf6e667906bf67316a77.
+- Eight-workflow set: Test, Production Readiness, Production Activation Validation, Production Activation Gate, Production E2E Contract Gate, Security Audit, Final Integration Gate, Production Observability.
+- Phase 20 shadow comparison has a durable ShadowComparisonStore boundary and regression coverage; it is not merely an in-process ledger.
+- Remaining acceptance boundary is live Railway/PC Worker pull integration and recovery, not another architectural rewrite.
+
+### Verification discipline
+- If a fresh Actions run fails, repair only the concrete failing boundary, add regression coverage where appropriate, and rerun the exact resulting HEAD.
+- Do not mark a phase VERIFIED from historical SHAs when the current HEAD has not passed the required checks.
