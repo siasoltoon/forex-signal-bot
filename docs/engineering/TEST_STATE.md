@@ -46,3 +46,11 @@ Railway remains deferred until the capability roadmap and final regression are c
 - All eight current workflows are green on the same exact HEAD.
 - Test, Production Readiness, Production Activation Validation, Production Activation Gate, Production E2E Contract Gate, Security Audit, Final Integration Gate, and Production Observability all completed successfully.
 - This verifies code/CI state only; live Railway/PC Worker integration and recovery remain separate operational evidence.
+
+
+## Phase 12–20 Verification Stream — 2026-09-21
+- Current documented code/CI frontier: c2c0220caceec51237eacf6e667906bf67316a77.
+- The recorded exact-head evidence reports all eight required workflows successful on that HEAD.
+- Focused coverage exists for profiles/execution context, advanced intelligence, portfolio/correlation/stress, research/robustness, strategy lifecycle, opportunity/heatmap, paper/shadow/replay/Time Machine, alerts, macro providers, and PC Worker pull transport.
+- Live Railway and PC Worker pull/recovery evidence is operational evidence and is not substituted by GitHub Actions success.
+- If the user-visible Actions page shows red runs, those runs must be mapped to their exact commit/run before changing production code; historical red runs must not be treated as evidence that the current HEAD is failing.
